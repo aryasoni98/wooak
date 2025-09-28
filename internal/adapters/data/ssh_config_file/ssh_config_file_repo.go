@@ -113,8 +113,14 @@ func (r *Repository) UpdateServer(server domain.Server, newServer domain.Server)
 
 		newPatterns := make([]*ssh_config.Pattern, 0, len(host.Patterns))
 		for _, pattern := range host.Patterns {
-			if pattern.Str == server.Alias {
-				newPatterns = append(newPatterns, &ssh_config.Pattern{Str: newServer.Alias})
+			if pattern.String() == server.Alias {
+				newPattern, err := ssh_config.NewPattern(newServer.Alias)
+				if err != nil {
+					r.logger.Warnf("failed to create pattern for alias %s: %v", newServer.Alias, err)
+					newPatterns = append(newPatterns, pattern) // Keep original pattern
+				} else {
+					newPatterns = append(newPatterns, newPattern)
+				}
 			} else {
 				newPatterns = append(newPatterns, pattern)
 			}

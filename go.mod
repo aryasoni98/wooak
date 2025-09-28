@@ -1,8 +1,6 @@
 module github.com/aryasoni98/wooak
 
-go 1.24.6
-
-replace github.com/kevinburke/ssh_config => github.com/aryasoni98/ssh_config v1.4.2
+go 1.23.0
 
 require (
 	github.com/atotto/clipboard v0.1.4

@@ -93,14 +93,17 @@ func (r *Repository) hostContainsPattern(host *ssh_config.Host, target string) b
 
 // createHostFromServer creates a new ssh_config.Host from a domain.Server.
 func (r *Repository) createHostFromServer(server domain.Server) *ssh_config.Host {
+	pattern, err := ssh_config.NewPattern(server.Alias)
+	if err != nil {
+		r.logger.Warnf("failed to create pattern for alias %s: %v", server.Alias, err)
+		// Fallback to a simple pattern
+		pattern, _ = ssh_config.NewPattern("*")
+	}
+
 	host := &ssh_config.Host{
-		Patterns: []*ssh_config.Pattern{
-			{Str: server.Alias},
-		},
-		Nodes:              make([]ssh_config.Node, 0),
-		LeadingSpace:       4,
-		EOLComment:         "Added by wooak",
-		SpaceBeforeComment: strings.Repeat(" ", 4),
+		Patterns:   []*ssh_config.Pattern{pattern},
+		Nodes:      make([]ssh_config.Node, 0),
+		EOLComment: "Added by wooak",
 	}
 
 	// Basic config - always present
@@ -196,9 +199,8 @@ func (r *Repository) addKVNodeIfNotEmpty(host *ssh_config.Host, key, value strin
 	}
 
 	kvNode := &ssh_config.KV{
-		Key:          key,
-		Value:        value,
-		LeadingSpace: 4,
+		Key:   key,
+		Value: value,
 	}
 	host.Nodes = append(host.Nodes, kvNode)
 }
@@ -350,9 +352,8 @@ func (r *Repository) updateOrAddKVNode(host *ssh_config.Host, key, newValue stri
 
 	// Add new node if not found
 	kvNode := &ssh_config.KV{
-		Key:          r.getProperKeyCase(key),
-		Value:        newValue,
-		LeadingSpace: 4,
+		Key:   r.getProperKeyCase(key),
+		Value: newValue,
 	}
 	host.Nodes = append(host.Nodes, kvNode)
 }
