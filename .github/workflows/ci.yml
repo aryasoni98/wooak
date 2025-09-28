@@ -1,106 +1,144 @@
 name: CI
 
 on:
-    push:
-        branches: [master]
-    pull_request:
-        branches: [master]
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                go-version: [1.21, 1.22, 1.23]
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.21, 1.22, 1.23]
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: ${{ matrix.go-version }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
 
-            - name: Cache Go modules
-              uses: actions/cache@v3
-              with:
-                  path: ~/go/pkg/mod
-                  key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-                  restore-keys: |
-                      ${{ runner.os }}-go-
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-            - name: Download dependencies
-              run: go mod download
+      - name: Download dependencies
+        run: go mod download
 
-            - name: Verify dependencies
-              run: go mod verify
+      - name: Verify dependencies
+        run: go mod verify
 
-            - name: Run tests
-              run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
 
-            - name: Generate coverage report
-              run: go tool cover -html=coverage.out -o coverage.html
+      - name: Generate coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  file: ./coverage.out
-                  flags: unittests
-                  name: codecov-umbrella
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
-    lint:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: 1.23
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23
 
-            - name: golangci-lint
-              uses: golangci/golangci-lint-action@v3
-              with:
-                  version: latest
-                  args: --timeout=5m
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    security:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: 1.23
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Run Gosec Security Scanner
-              uses: securecodewarrior/github-action-gosec@master
-              with:
-                  args: "-fmt sarif -out gosec.sarif ./..."
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23
 
-            - name: Upload SARIF file
-              uses: github/codeql-action/upload-sarif@v2
-              with:
-                  sarif_file: gosec.sarif
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    build:
-        runs-on: ${{ matrix.os }}
-        strategy:
-            matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
-                go-version: [1.21, 1.23]
+      - name: Download dependencies
+        run: go mod download
 
-        steps:
-            - uses: actions/checkout@v4
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec-action@v2
+        with:
+          args: "-fmt sarif -out gosec.sarif ./..."
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: ${{ matrix.go-version }}
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gosec.sarif
 
-            - name: Build
-              run: go build -v ./...
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        go-version: [1.21, 1.23]
 
-            - name: Test build
-              run: go test -c ./...
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Test build
+        run: go test -c ./...
