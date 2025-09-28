@@ -7,6 +7,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Release](https://img.shields.io/badge/Release-v0.1.0-green?style=for-the-badge)](https://github.com/aryasoni98/wooak/releases)
+[![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-Friendly-orange?style=for-the-badge)](https://hacktoberfest.com/participation/)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?style=for-the-badge)](CONTRIBUTING.md)
 
 </div>
 
@@ -535,6 +537,35 @@ graph TD
 
 ---
 
+## 🎃 Hacktoberfest 2025
+
+**Wooak is participating in [Hacktoberfest 2025](https://hacktoberfest.com/participation/)!** 🎉
+
+We welcome contributions from developers of all skill levels. Whether you're a seasoned Go developer or just starting your open source journey, there are opportunities for everyone to contribute meaningfully to Wooak.
+
+### 🚀 Quick Start for Hacktoberfest Contributors
+
+1. **Read our [Contributing Guidelines](CONTRIBUTING.md)** - Essential reading for all contributors
+2. **Check our [Code of Conduct](CODE_OF_CONDUCT.md)** - We maintain a welcoming community
+3. **Look for issues labeled** `hacktoberfest`, `good first issue`, or `help wanted`
+4. **Use our [Hacktoberfest issue template](.github/ISSUE_TEMPLATE/hacktoberfest.yml)** when creating issues
+
+### 🎯 Good First Issues
+
+Perfect for Hacktoberfest beginners:
+- 📚 **Documentation improvements** - Fix typos, add examples, improve clarity
+- 🧪 **Test coverage** - Add tests for existing functionality
+- 🎨 **UI/UX polish** - Improve user experience and interface
+- 🐛 **Bug fixes** - Fix issues labeled as "good first issue"
+- ⚡ **Performance improvements** - Optimize existing code
+
+### 🏆 Hacktoberfest Guidelines
+
+- **Quality over Quantity**: We value meaningful contributions that improve the project
+- **Follow our standards**: All contributions must meet our quality and testing requirements
+- **Respect the community**: Follow our Code of Conduct and be respectful to all contributors
+- **Valid contributions**: Ensure your PRs are not spam and provide real value
+
 ## 🤝 Contributing
 
 We welcome contributions! Please follow these guidelines:
@@ -617,6 +648,9 @@ If you find Wooak useful, please consider:
 
 - 📧 **Issues**: [GitHub Issues](https://github.com/aryasoni98/wooak/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/aryasoni98/wooak/discussions)
+- 📋 **Contributing**: [Contributing Guidelines](CONTRIBUTING.md)
+- 📜 **Code of Conduct**: [Code of Conduct](CODE_OF_CONDUCT.md)
+- 🛡️ **Security**: [Security Policy](SECURITY.md)
 
 ---
 
