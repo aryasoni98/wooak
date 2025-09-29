@@ -1,7 +1,7 @@
-name: 🎃 Hacktoberfest Contribution
-description: Contribute to Wooak during Hacktoberfest
-title: "[Hacktoberfest]: "
-labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "help wanted"]
+name: 🐛 Fix race condition in metadata file operations
+description: Fix potential race condition in metadata management that could lead to data corruption
+title: "[Hacktoberfest]: Fix race condition in metadata file operations"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "bug", "security"]
 body:
   - type: markdown
     attributes:
@@ -87,3 +87,49 @@ body:
           required: true
         - label: I understand that quality contributions are valued over quantity
           required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Issue Description
+        
+        The metadata manager in `internal/adapters/data/ssh_config_file/metadata_manager.go` has a potential race condition when multiple processes try to write to the metadata file simultaneously.
+        
+        **Current Issue:**
+        - `saveAll()` function doesn't use atomic file operations
+        - Could lead to data corruption or lost metadata
+        - No file locking mechanism
+        
+        **Expected Solution:**
+        - Implement atomic file operations using temporary files
+        - Add file locking mechanism
+        - Ensure data consistency during concurrent access
+        
+        **Files to Modify:**
+        - `internal/adapters/data/ssh_config_file/metadata_manager.go`
+        - Add tests for concurrent access scenarios
+        
+        **Acceptance Criteria:**
+        - [ ] Implement atomic file operations
+        - [ ] Add file locking mechanism
+        - [ ] Add concurrent access tests
+        - [ ] Ensure no data loss during concurrent writes
+        - [ ] Update documentation
+        
+        **Difficulty:** Medium
+        **Estimated Time:** 4-6 hours
+        
+        ## 🎯 Technical Details
+        
+        The issue is in the `saveAll` function around line 67-85. Currently, it directly writes to the metadata file without proper synchronization, which could cause data corruption if multiple instances of Wooak are running simultaneously.
+        
+        **Suggested Approach:**
+        1. Use temporary files for atomic writes
+        2. Implement file locking using `flock` or similar
+        3. Add retry logic for failed operations
+        4. Create comprehensive tests for concurrent scenarios
+        
+        ## 📚 Resources
+        - [Go file operations best practices](https://golang.org/pkg/os/#File)
+        - [Atomic file operations in Go](https://golang.org/pkg/os/#Rename)
+        - [File locking in Go](https://golang.org/pkg/syscall/#Flock)

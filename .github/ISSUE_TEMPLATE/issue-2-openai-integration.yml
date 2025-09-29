@@ -1,7 +1,7 @@
-name: 🎃 Hacktoberfest Contribution
-description: Contribute to Wooak during Hacktoberfest
-title: "[Hacktoberfest]: "
-labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "help wanted"]
+name: ✨ Implement OpenAI API integration for AI service
+description: Implement OpenAI API integration to support multiple AI providers
+title: "[Hacktoberfest]: Implement OpenAI API integration for AI service"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "enhancement", "ai"]
 body:
   - type: markdown
     attributes:
@@ -87,3 +87,57 @@ body:
           required: true
         - label: I understand that quality contributions are valued over quantity
           required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Issue Description
+        
+        The AI service currently has a placeholder for OpenAI integration. This needs to be implemented to support multiple AI providers and give users more options for AI-powered features.
+        
+        **Current Issue:**
+        - `makeOpenAIRequest()` function returns "not implemented" error
+        - Missing OpenAI API integration
+        - No support for OpenAI models (GPT-3.5, GPT-4, etc.)
+        
+        **Expected Solution:**
+        - Implement OpenAI API client
+        - Add proper error handling and retry logic
+        - Support for different OpenAI models
+        - Add configuration options for OpenAI
+        
+        **Files to Modify:**
+        - `internal/core/services/ai/ai_service.go`
+        - `internal/core/domain/ai/ai_models.go`
+        - Add OpenAI-specific tests
+        
+        **Acceptance Criteria:**
+        - [ ] Implement OpenAI API client
+        - [ ] Add model selection support
+        - [ ] Implement proper error handling
+        - [ ] Add retry logic with exponential backoff
+        - [ ] Add comprehensive tests
+        - [ ] Update documentation
+        
+        **Difficulty:** Medium
+        **Estimated Time:** 6-8 hours
+        
+        ## 🎯 Technical Details
+        
+        The issue is in the `makeOpenAIRequest` function around line 293 in `ai_service.go`. Currently, it's just a placeholder that returns an error.
+        
+        **Suggested Approach:**
+        1. Implement HTTP client for OpenAI API
+        2. Add proper request/response handling
+        3. Implement retry logic with exponential backoff
+        4. Add model selection and configuration
+        5. Create comprehensive tests
+        
+        **OpenAI API Endpoints to implement:**
+        - Chat completions: `https://api.openai.com/v1/chat/completions`
+        - Models list: `https://api.openai.com/v1/models`
+        
+        ## 📚 Resources
+        - [OpenAI API Documentation](https://platform.openai.com/docs/api-reference)
+        - [Go HTTP client best practices](https://golang.org/pkg/net/http/)
+        - [Exponential backoff in Go](https://github.com/cenkalti/backoff)

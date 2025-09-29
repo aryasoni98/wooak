@@ -1,0 +1,153 @@
+name: 🧪 Enhance test coverage for critical components
+description: Enhance test coverage for critical components, particularly in error handling and edge cases
+title: "[Hacktoberfest]: Enhance test coverage for critical components"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "testing", "quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        🎉 Welcome to Hacktoberfest! Thank you for considering contributing to Wooak.
+        
+        This template is specifically for Hacktoberfest contributors. Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before getting started.
+
+  - type: dropdown
+    id: contribution_type
+    attributes:
+      label: Contribution Type
+      description: What type of contribution are you planning to make?
+      options:
+        - Bug Fix
+        - New Feature
+        - Documentation
+        - Code Refactoring
+        - Test Coverage
+        - Performance Improvement
+        - Security Enhancement
+        - UI/UX Improvement
+    validations:
+      required: true
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty Level
+      description: How would you rate the difficulty of this contribution?
+      options:
+        - Beginner - Good first issue
+        - Intermediate - Some experience needed
+        - Advanced - Requires deep knowledge
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Contribution Description
+      description: Describe what you plan to contribute
+      placeholder: Provide a clear description of your planned contribution...
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why are you interested in contributing to this project?
+      placeholder: Tell us what motivated you to contribute to Wooak...
+
+  - type: textarea
+    id: experience
+    attributes:
+      label: Relevant Experience
+      description: What experience do you have with Go, SSH, or similar technologies?
+      placeholder: Describe your relevant technical experience...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-contribution Checklist
+      description: Please confirm you've completed these steps
+      options:
+        - label: I have read the Contributing Guidelines
+          required: true
+        - label: I have read the Code of Conduct
+          required: true
+        - label: I have checked existing issues to avoid duplicates
+          required: true
+        - label: I understand this is a Hacktoberfest contribution
+          required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Agreement
+      description: By submitting this issue, you agree to follow our guidelines
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
+        - label: I understand that quality contributions are valued over quantity
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 🧪 Issue Description
+        
+        Some critical components have insufficient test coverage, particularly in error handling and edge cases.
+        
+        **Current Issue:**
+        - Missing tests for error scenarios
+        - Limited edge case testing
+        - Some components lack comprehensive test coverage
+        - Integration tests are minimal
+        
+        **Expected Solution:**
+        - Add tests for error handling scenarios
+        - Implement edge case testing
+        - Add integration tests for critical workflows
+        - Improve test coverage metrics
+        
+        **Files to Modify:**
+        - Add tests for `internal/adapters/data/ssh_config_file/`
+        - Add tests for `internal/core/services/security/`
+        - Add integration tests
+        
+        **Acceptance Criteria:**
+        - [ ] Add error scenario tests
+        - [ ] Implement edge case testing
+        - [ ] Add integration tests
+        - [ ] Achieve >80% test coverage
+        - [ ] Add performance tests
+        - [ ] Update test documentation
+        
+        **Difficulty:** Medium
+        **Estimated Time:** 4-6 hours
+        
+        ## 🎯 Technical Details
+        
+        This issue focuses on improving test coverage in several key areas:
+        
+        **Areas needing better test coverage:**
+        1. **Error handling scenarios** - Network failures, file I/O errors, validation failures
+        2. **Edge cases** - Empty inputs, malformed data, boundary conditions
+        3. **Integration tests** - End-to-end workflows, component interactions
+        4. **Security tests** - Input validation, file permissions, audit logging
+        
+        **Suggested Approach:**
+        1. Analyze current test coverage using `go test -cover`
+        2. Identify components with low coverage
+        3. Add table-driven tests for error scenarios
+        4. Implement integration tests for critical workflows
+        5. Add performance benchmarks
+        
+        **Test types to add:**
+        - Unit tests for error handling
+        - Integration tests for workflows
+        - Performance benchmarks
+        - Security-focused tests
+        - Concurrency tests
+        
+        ## 📚 Resources
+        - [Go testing best practices](https://golang.org/doc/effective_go.html#testing)
+        - [Table-driven tests](https://github.com/golang/go/wiki/TableDrivenTests)
+        - [Go test coverage](https://blog.golang.org/cover)

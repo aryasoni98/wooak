@@ -1,0 +1,153 @@
+name: ⚙️ Add comprehensive configuration validation
+description: Add comprehensive validation for all configuration options to prevent invalid configurations
+title: "[Hacktoberfest]: Add comprehensive configuration validation"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "enhancement", "configuration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        🎉 Welcome to Hacktoberfest! Thank you for considering contributing to Wooak.
+        
+        This template is specifically for Hacktoberfest contributors. Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before getting started.
+
+  - type: dropdown
+    id: contribution_type
+    attributes:
+      label: Contribution Type
+      description: What type of contribution are you planning to make?
+      options:
+        - Bug Fix
+        - New Feature
+        - Documentation
+        - Code Refactoring
+        - Test Coverage
+        - Performance Improvement
+        - Security Enhancement
+        - UI/UX Improvement
+    validations:
+      required: true
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty Level
+      description: How would you rate the difficulty of this contribution?
+      options:
+        - Beginner - Good first issue
+        - Intermediate - Some experience needed
+        - Advanced - Requires deep knowledge
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Contribution Description
+      description: Describe what you plan to contribute
+      placeholder: Provide a clear description of your planned contribution...
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why are you interested in contributing to this project?
+      placeholder: Tell us what motivated you to contribute to Wooak...
+
+  - type: textarea
+    id: experience
+    attributes:
+      label: Relevant Experience
+      description: What experience do you have with Go, SSH, or similar technologies?
+      placeholder: Describe your relevant technical experience...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-contribution Checklist
+      description: Please confirm you've completed these steps
+      options:
+        - label: I have read the Contributing Guidelines
+          required: true
+        - label: I have read the Code of Conduct
+          required: true
+        - label: I have checked existing issues to avoid duplicates
+          required: true
+        - label: I understand this is a Hacktoberfest contribution
+          required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Agreement
+      description: By submitting this issue, you agree to follow our guidelines
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
+        - label: I understand that quality contributions are valued over quantity
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚙️ Issue Description
+        
+        Add comprehensive validation for all configuration options to prevent invalid configurations from causing issues.
+        
+        **Current Issue:**
+        - Limited configuration validation
+        - No validation for AI service configuration
+        - Missing validation for security policy settings
+        - Invalid configurations can cause runtime errors
+        
+        **Expected Solution:**
+        - Implement configuration validation framework
+        - Add validation for all configuration options
+        - Provide clear error messages for invalid configurations
+        - Add configuration testing
+        
+        **Files to Modify:**
+        - `internal/core/domain/ai/ai_models.go`
+        - `internal/core/domain/security/security_policy.go`
+        - Add configuration validation package
+        
+        **Acceptance Criteria:**
+        - [ ] Implement validation framework
+        - [ ] Add configuration validation
+        - [ ] Provide clear error messages
+        - [ ] Add configuration tests
+        - [ ] Update documentation
+        - [ ] Add validation examples
+        
+        **Difficulty:** Low-Medium
+        **Estimated Time:** 3-4 hours
+        
+        ## 🎯 Technical Details
+        
+        This issue involves creating a comprehensive configuration validation system:
+        
+        **Configuration areas to validate:**
+        1. **AI service configuration** - Model names, API keys, timeouts, URLs
+        2. **Security policy settings** - Key sizes, allowed types, retention periods
+        3. **Application settings** - File paths, log levels, cache settings
+        4. **Network settings** - Ports, timeouts, connection limits
+        
+        **Suggested Approach:**
+        1. Create a validation framework with interfaces
+        2. Implement validators for each configuration type
+        3. Add validation rules and constraints
+        4. Provide clear error messages and suggestions
+        5. Add configuration testing utilities
+        
+        **Validation types to implement:**
+        - Required field validation
+        - Range validation (numbers, durations)
+        - Format validation (URLs, file paths, regex patterns)
+        - Dependency validation (related settings)
+        - Security validation (permissions, access)
+        
+        ## 📚 Resources
+        - [Go validation libraries](https://github.com/go-playground/validator)
+        - [Configuration validation patterns](https://golang.org/pkg/flag/)
+        - [Go configuration best practices](https://github.com/spf13/viper)

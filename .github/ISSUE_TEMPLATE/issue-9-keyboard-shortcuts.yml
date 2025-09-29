@@ -1,7 +1,7 @@
-name: 🎃 Hacktoberfest Contribution
-description: Contribute to Wooak during Hacktoberfest
-title: "[Hacktoberfest]: "
-labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "help wanted"]
+name: ⌨️ Add comprehensive keyboard shortcuts documentation
+description: Create comprehensive documentation for all keyboard shortcuts and add a help system
+title: "[Hacktoberfest]: Add comprehensive keyboard shortcuts documentation"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "documentation", "ui"]
 body:
   - type: markdown
     attributes:
@@ -87,3 +87,67 @@ body:
           required: true
         - label: I understand that quality contributions are valued over quantity
           required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ⌨️ Issue Description
+        
+        Create comprehensive documentation for all keyboard shortcuts and add a help system within the application.
+        
+        **Current Issue:**
+        - Limited keyboard shortcuts documentation
+        - No in-app help system
+        - Users may not discover all available shortcuts
+        - No quick reference guide
+        
+        **Expected Solution:**
+        - Document all keyboard shortcuts
+        - Add in-app help system
+        - Create keyboard shortcuts reference
+        - Add help command
+        
+        **Files to Modify:**
+        - `internal/adapters/ui/handlers.go`
+        - `README.md`
+        - Add help system to TUI
+        
+        **Acceptance Criteria:**
+        - [ ] Document all shortcuts
+        - [ ] Add in-app help system
+        - [ ] Create shortcuts reference
+        - [ ] Add help command
+        - [ ] Update documentation
+        - [ ] Add help tests
+        
+        **Difficulty:** Low
+        **Estimated Time:** 2-3 hours
+        
+        ## 🎯 Technical Details
+        
+        This issue involves creating comprehensive keyboard shortcuts documentation and help system:
+        
+        **Areas to document:**
+        1. **Main interface shortcuts** - Navigation, selection, actions
+        2. **Form shortcuts** - Input fields, validation, submission
+        3. **AI panel shortcuts** - Query input, response handling
+        4. **Security panel shortcuts** - Configuration, validation
+        
+        **Suggested Approach:**
+        1. Audit all existing keyboard shortcuts
+        2. Create comprehensive documentation
+        3. Add in-app help system using tview
+        4. Create quick reference guide
+        5. Add help command (F1 or ?)
+        
+        **Help system features:**
+        - In-app help dialog
+        - Context-sensitive help
+        - Quick reference guide
+        - Searchable help system
+        - Keyboard shortcuts overlay
+        
+        ## 📚 Resources
+        - [tview documentation](https://pkg.go.dev/github.com/rivo/tview)
+        - [TUI design patterns](https://github.com/rivo/tview/wiki)
+        - [Keyboard shortcuts best practices](https://ux.stackexchange.com/questions/5226/standard-keyboard-shortcuts-for-desktop-applications)

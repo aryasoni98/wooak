@@ -1,7 +1,7 @@
-name: 🎃 Hacktoberfest Contribution
-description: Contribute to Wooak during Hacktoberfest
-title: "[Hacktoberfest]: "
-labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "help wanted"]
+name: 🔒 Add comprehensive input sanitization for file paths
+description: Add comprehensive input sanitization to prevent security vulnerabilities
+title: "[Hacktoberfest]: Add comprehensive input sanitization for file paths"
+labels: ["hacktoberfest", "hacktoberfest-accepted", "good first issue", "security", "bug"]
 body:
   - type: markdown
     attributes:
@@ -87,3 +87,63 @@ body:
           required: true
         - label: I understand that quality contributions are valued over quantity
           required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔒 Issue Description
+        
+        Some file path inputs are not properly sanitized, which could lead to security vulnerabilities like path traversal attacks.
+        
+        **Current Issue:**
+        - File paths in validation functions need better sanitization
+        - Potential path traversal vulnerabilities
+        - Missing validation for special characters and sequences
+        
+        **Expected Solution:**
+        - Implement comprehensive path sanitization
+        - Add validation for path traversal attempts
+        - Sanitize special characters and sequences
+        - Add security tests
+        
+        **Files to Modify:**
+        - `internal/adapters/ui/validation.go`
+        - `internal/adapters/data/ssh_config_file/file_system.go`
+        - Add security-focused tests
+        
+        **Acceptance Criteria:**
+        - [ ] Implement path sanitization functions
+        - [ ] Add path traversal protection
+        - [ ] Sanitize special characters
+        - [ ] Add security tests
+        - [ ] Update validation logic
+        - [ ] Document security measures
+        
+        **Difficulty:** Medium
+        **Estimated Time:** 4-5 hours
+        
+        ## 🎯 Technical Details
+        
+        The issue is in the validation functions, particularly around file path handling. We need to prevent attacks like:
+        - `../../../etc/passwd` (path traversal)
+        - `\..\..\windows\system32` (Windows path traversal)
+        - Null byte injection
+        - Special character manipulation
+        
+        **Suggested Approach:**
+        1. Create a dedicated path sanitization package
+        2. Implement path traversal detection
+        3. Add character filtering and validation
+        4. Create comprehensive security tests
+        5. Add input validation for all file operations
+        
+        **Security Considerations:**
+        - Prevent directory traversal attacks
+        - Validate file extensions
+        - Check for dangerous characters
+        - Implement proper path normalization
+        
+        ## 📚 Resources
+        - [OWASP Path Traversal](https://owasp.org/www-community/attacks/Path_Traversal)
+        - [Go filepath package](https://golang.org/pkg/path/filepath/)
+        - [Go security best practices](https://golang.org/doc/security.html)
