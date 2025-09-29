@@ -100,7 +100,7 @@ func (ap *AIPanel) setupAIInteraction() {
 	ap.textView = tview.NewTextView()
 	ap.textView.SetBorder(true).SetTitle(" AI Assistant ")
 	ap.textView.SetDynamicColors(true)
-	ap.textView.SetText("[blue]Welcome to Wooak AI Assistant![/blue]\n\n" +
+	ap.textView.SetText("[blue]Welcome to Wooak AI Assistant!\n\n" +
 		"Ask me about:\n" +
 		"• SSH configuration optimization\n" +
 		"• Security best practices\n" +
@@ -121,7 +121,7 @@ func (ap *AIPanel) saveConfig() {
 
 // testConnection tests the connection to the AI provider
 func (ap *AIPanel) testConnection() {
-	ap.statusView.SetText("[yellow]Testing AI connection...[/yellow]")
+	ap.statusView.SetText("[yellow]Testing AI connection...")
 
 	// Test connection in a goroutine to avoid blocking UI
 	go func() {
@@ -131,11 +131,11 @@ func (ap *AIPanel) testConnection() {
 		err := ap.aiSvc.TestConnection(ctx)
 		if err != nil {
 			ap.app.QueueUpdateDraw(func() {
-				ap.statusView.SetText(fmt.Sprintf("[red]Connection failed: %v[/red]", err))
+				ap.statusView.SetText(fmt.Sprintf("[red]Connection failed: %v", err))
 			})
 		} else {
 			ap.app.QueueUpdateDraw(func() {
-				ap.statusView.SetText("[green]AI connection successful![/green]")
+				ap.statusView.SetText("[green]AI connection successful!")
 			})
 		}
 	}()
@@ -149,7 +149,7 @@ func (ap *AIPanel) resetConfig() {
 		return
 	}
 	ap.setupUI() // Refresh the UI
-	ap.resultView.SetText("[yellow]AI configuration reset to defaults[/yellow]")
+	ap.resultView.SetText("[yellow]AI configuration reset to defaults")
 }
 
 // updateStatus updates the AI status display
@@ -163,9 +163,9 @@ func (ap *AIPanel) updateStatus() {
 	status.WriteString(fmt.Sprintf("Cache: %t\n", ap.config.CacheEnabled))
 
 	if ap.config.Enabled {
-		status.WriteString("\n[green]AI Service: Active[/green]")
+		status.WriteString("\n[green]AI Service: Active")
 	} else {
-		status.WriteString("\n[red]AI Service: Disabled[/red]")
+		status.WriteString("\n[red]AI Service: Disabled")
 	}
 
 	ap.statusView.SetText(status.String())
@@ -174,11 +174,11 @@ func (ap *AIPanel) updateStatus() {
 // processAIQuery processes an AI query
 func (ap *AIPanel) processAIQuery(query string) {
 	if !ap.config.Enabled {
-		ap.textView.SetText("[red]AI service is disabled. Please enable it in the configuration.[/red]")
+		ap.textView.SetText("[red]AI service is disabled. Please enable it in the configuration.")
 		return
 	}
 
-	ap.textView.SetText("[yellow]Processing your query...[/yellow]")
+	ap.textView.SetText("[yellow]Processing your query...")
 
 	// Process query in a goroutine to avoid blocking UI
 	go func() {
@@ -202,39 +202,39 @@ func (ap *AIPanel) generateMockResponse(query string) string {
 	queryLower := strings.ToLower(query)
 
 	if strings.Contains(queryLower, "security") {
-		return "[green]AI Security Analysis:[/green]\n\n" +
+		return "[green]AI Security Analysis:\n\n" +
 			"Based on your SSH configuration, here are my security recommendations:\n\n" +
-			"1. [yellow]Key Authentication:[/yellow] Ensure you're using Ed25519 or RSA 3072+ keys\n" +
-			"2. [yellow]Host Verification:[/yellow] Enable StrictHostKeyChecking\n" +
-			"3. [yellow]Connection Timeout:[/yellow] Set appropriate connection timeouts\n" +
-			"4. [yellow]Port Security:[/yellow] Use non-standard ports when possible\n\n" +
-			"[blue]Confidence: 85%[/blue]"
+			"1. [yellow]Key Authentication: Ensure you're using Ed25519 or RSA 3072+ keys\n" +
+			"2. [yellow]Host Verification: Enable StrictHostKeyChecking\n" +
+			"3. [yellow]Connection Timeout: Set appropriate connection timeouts\n" +
+			"4. [yellow]Port Security: Use non-standard ports when possible\n\n" +
+			"[blue]Confidence: 85%"
 	}
 
 	if strings.Contains(queryLower, "optimize") || strings.Contains(queryLower, "performance") {
-		return "[green]AI Performance Optimization:[/green]\n\n" +
+		return "[green]AI Performance Optimization:\n\n" +
 			"Here are my recommendations to optimize your SSH connections:\n\n" +
-			"1. [yellow]Compression:[/yellow] Enable compression for slow connections\n" +
-			"2. [yellow]Keep-Alive:[/yellow] Configure ServerAliveInterval\n" +
-			"3. [yellow]Multiplexing:[/yellow] Use ControlMaster for multiple sessions\n" +
-			"4. [yellow]Cipher Selection:[/yellow] Use faster ciphers when security allows\n\n" +
-			"[blue]Expected improvement: 20-30% faster connections[/blue]"
+			"1. [yellow]Compression: Enable compression for slow connections\n" +
+			"2. [yellow]Keep-Alive: Configure ServerAliveInterval\n" +
+			"3. [yellow]Multiplexing: Use ControlMaster for multiple sessions\n" +
+			"4. [yellow]Cipher Selection: Use faster ciphers when security allows\n\n" +
+			"[blue]Expected improvement: 20-30% faster connections"
 	}
 
 	if strings.Contains(queryLower, "search") || strings.Contains(queryLower, "find") {
-		return "[green]AI Natural Language Search:[/green]\n\n" +
+		return "[green]AI Natural Language Search:\n\n" +
 			"I found these servers matching your query:\n\n" +
-			"1. [yellow]production-web-01[/yellow] - Web server cluster\n" +
+			"1. [yellow]production-web-01 - Web server cluster\n" +
 			"   • High availability setup\n" +
 			"   • Load balanced\n\n" +
-			"2. [yellow]staging-db-02[/yellow] - Database server\n" +
+			"2. [yellow]staging-db-02 - Database server\n" +
 			"   • PostgreSQL instance\n" +
 			"   • Backup configured\n\n" +
-			"[blue]Search confidence: 92%[/blue]"
+			"[blue]Search confidence: 92%"
 	}
 
 	// Default response
-	return "[green]AI Assistant Response:[/green]\n\n" +
+	return "[green]AI Assistant Response:\n\n" +
 		"Thank you for your question: \"" + query + "\"\n\n" +
 		"I'm here to help you with:\n" +
 		"• SSH configuration optimization\n" +
