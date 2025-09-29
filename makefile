@@ -224,14 +224,29 @@ security-test: ## Test security features
 ai-setup: ## Setup AI dependencies and models
 	@echo "Setting up AI environment..."
 	@echo "✓ Checking Ollama installation"
-	@if ! command -v ollama >/dev/null 2>&1; then \
-		echo "Installing Ollama..."; \
-		curl -fsSL https://ollama.ai/install.sh | sh; \
-	else \
-		echo "✓ Ollama is already installed"; \
-	fi
+	@OS_NAME=$$(uname -s); \
+	case "$$OS_NAME" in \
+		Darwin) \
+			if ! command -v ollama >/dev/null 2>&1; then \
+				if command -v brew >/dev/null 2>&1; then brew install ollama; \
+				else echo "Homebrew not found. Install Homebrew or download from https://ollama.ai" && exit 1; fi; \
+			fi ;; \
+		Linux) \
+			if ! command -v ollama >/dev/null 2>&1; then curl -fsSL https://ollama.ai/install.sh | sh; fi ;; \
+		*) echo "Unsupported OS: $$OS_NAME" && echo "Install manually from https://ollama.ai" && exit 1 ;; \
+	esac
 	@echo "✓ Pulling lightweight AI model (llama3.2:3b)..."
-	@ollama pull llama3.2:3b || echo "Warning: Could not pull model. Please ensure Ollama is running."
+	@if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then \
+		ollama pull llama3.2:3b; \
+	else \
+		OS_NAME=$$(uname -s); \
+		case "$$OS_NAME" in \
+			Darwin) echo "✗ Ollama service is not running. Start with: brew services start ollama" ;; \
+			Linux)  echo "✗ Ollama service is not running. Start with: systemctl --user start ollama (if available) or ollama serve" ;; \
+			*)      echo "✗ Ollama service is not running. Start with: ollama serve" ;; \
+		esac; \
+		echo "Skipping model pull."; \
+	fi
 	@echo "AI setup completed successfully"
 
 .PHONY: ai-test
@@ -263,8 +278,13 @@ ai-status: ## Check AI service status
 			echo "Available models:"; \
 			ollama list 2>/dev/null || echo "No models found"; \
 		else \
+			OS_NAME=$$(uname -s); \
 			echo "✗ Ollama service is not running"; \
-			echo "Start it with: ollama serve"; \
+			case "$$OS_NAME" in \
+				Darwin) echo "Start with: brew services start ollama" ;; \
+				Linux)  echo "Start with: systemctl --user start ollama (if available) or ollama serve" ;; \
+				*)      echo "Start with: ollama serve" ;; \
+			esac; \
 		fi; \
 	else \
 		echo "✗ Ollama is not installed"; \
