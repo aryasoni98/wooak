@@ -1,100 +1,257 @@
 name: Hacktoberfest
 
 on:
-    issues:
-        types: [opened, labeled]
-    pull_request:
-        types: [opened, labeled]
+  issues:
+    types: [opened, labeled, closed]
+  pull_request:
+    types: [opened, labeled, closed, merged]
+  milestone:
+    types: [created, closed]
+  project:
+    types: [created, closed, edited, deleted]
 
 jobs:
-    hacktoberfest-check:
-        runs-on: ubuntu-latest
-        if: github.event.label.name == 'hacktoberfest' || contains(github.event.pull_request.labels.*.name, 'hacktoberfest')
-        steps:
-            - name: Check if PR is valid for Hacktoberfest
-              uses: actions/github-script@v6
-              with:
-                  script: |
-                      const { data: pr } = await github.rest.pulls.get({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        pull_number: context.payload.pull_request.number
-                      });
+  hacktoberfest-check:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'pull_request' && 
+       (github.event.label.name == 'hacktoberfest' || 
+        contains(github.event.pull_request.labels.*.name, 'hacktoberfest')))
+    steps:
+      - name: Check if PR is valid for Hacktoberfest
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Only run for pull request events
+            if (context.eventName !== 'pull_request') {
+              console.log('Not a pull request event, skipping...');
+              return;
+            }
 
-                      // Check if PR is not a draft
-                      if (pr.draft) {
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.payload.pull_request.number,
-                          body: `🚫 **Hacktoberfest Notice**: This PR is currently in draft mode. Please mark it as "Ready for review" to be eligible for Hacktoberfest.`
-                        });
-                        return;
-                      }
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
 
-                      // Check if PR has meaningful changes
-                      const { data: files } = await github.rest.pulls.listFiles({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        pull_number: context.payload.pull_request.number
-                      });
+            // Check if PR is not a draft
+            if (pr.draft) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `🚫 **Hacktoberfest Notice**: This PR is currently in draft mode. Please mark it as "Ready for review" to be eligible for Hacktoberfest.`
+              });
+              return;
+            }
 
-                      const meaningfulChanges = files.some(file => 
-                        file.changes > 0 && 
-                        !file.filename.includes('package-lock.json') &&
-                        !file.filename.includes('yarn.lock') &&
-                        !file.filename.includes('.DS_Store')
-                      );
+            // Check if PR has meaningful changes
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
 
-                      if (!meaningfulChanges) {
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.payload.pull_request.number,
-                          body: `⚠️ **Hacktoberfest Notice**: This PR appears to contain only minor changes (like whitespace or lock files). Please ensure your contribution adds meaningful value to the project.`
-                        });
-                      } else {
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.payload.pull_request.number,
-                          body: `🎉 **Hacktoberfest**: Thank you for your contribution! This PR looks good for Hacktoberfest participation. Please ensure all CI checks pass and follow our [Contributing Guidelines](CONTRIBUTING.md).`
-                        });
-                      }
+            const meaningfulChanges = files.some(file => 
+              file.changes > 0 && 
+              !file.filename.includes('package-lock.json') &&
+              !file.filename.includes('yarn.lock') &&
+              !file.filename.includes('.DS_Store')
+            );
 
-    welcome-contributor:
-        runs-on: ubuntu-latest
-        if: github.event.action == 'opened' && github.event.issue
-        steps:
-            - name: Welcome new contributors
-              uses: actions/github-script@v6
-              with:
-                  script: |
-                      const { data: issue } = await github.rest.issues.get({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: context.payload.issue.number
-                      });
+            if (!meaningfulChanges) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `⚠️ **Hacktoberfest Notice**: This PR appears to contain only minor changes (like whitespace or lock files). Please ensure your contribution adds meaningful value to the project.`
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `🎉 **Hacktoberfest**: Thank you for your contribution! This PR looks good for Hacktoberfest participation. Please ensure all CI checks pass and follow our [Contributing Guidelines](CONTRIBUTING.md).`
+              });
+            }
 
-                      // Check if this is a Hacktoberfest issue
-                      const isHacktoberfest = issue.labels.some(label => 
-                        label.name.toLowerCase().includes('hacktoberfest')
-                      );
+  welcome-contributor:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' && github.event.issue
+    steps:
+      - name: Welcome new contributors
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number
+            });
 
-                      if (isHacktoberfest) {
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.payload.issue.number,
-                          body: `🎃 **Welcome to Hacktoberfest!** 
-                          
-                          Thank you for your interest in contributing to Wooak! 
-                          
-                          Please make sure to:
-                          - 📖 Read our [Contributing Guidelines](CONTRIBUTING.md)
-                          - 📜 Review our [Code of Conduct](CODE_OF_CONDUCT.md)
-                          - 🎯 Check out our [good first issues](https://github.com/aryasoni98/wooak/labels/good%20first%20issue)
-                          
-                          Happy contributing! 🚀`
-                        });
-                      }
+            // Check if this is a Hacktoberfest issue
+            const isHacktoberfest = issue.labels.some(label => 
+              label.name.toLowerCase().includes('hacktoberfest')
+            );
+
+            if (isHacktoberfest) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.issue.number,
+                body: `🎃 **Welcome to Hacktoberfest!** 
+                
+                Thank you for your interest in contributing to Wooak! 
+                
+                Please make sure to:
+                - 📖 Read our [Contributing Guidelines](CONTRIBUTING.md)
+                - 📜 Review our [Code of Conduct](CODE_OF_CONDUCT.md)
+                - 🎯 Check out our [good first issues](https://github.com/aryasoni98/wooak/labels/good%20first%20issue)
+                
+                Happy contributing! 🚀`
+              });
+            }
+
+  milestone-tracker:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'milestone'
+    steps:
+      - name: Track milestone progress
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const milestone = context.payload.milestone;
+
+            if (context.payload.action === 'closed') {
+              // Get all issues in this milestone
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                milestone: milestone.number,
+                state: 'all'
+              });
+
+              const hacktoberfestIssues = issues.filter(issue => 
+                issue.labels.some(label => 
+                  label.name.toLowerCase().includes('hacktoberfest')
+                )
+              );
+
+              if (hacktoberfestIssues.length > 0) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: milestone.number,
+                  body: `🎉 **Milestone Completed!** 
+                  
+                  Great work on completing the **${milestone.title}** milestone! 
+                  
+                  **Hacktoberfest Contributions:** ${hacktoberfestIssues.length} issues
+                  **Total Issues:** ${issues.length} issues
+                  
+                  Thank you to all contributors who helped make Wooak better! 🚀`
+                });
+              }
+            }
+
+  project-tracker:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'project'
+    steps:
+      - name: Track project progress
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const project = context.payload.project;
+
+            if (context.payload.action === 'closed') {
+              // Get project columns and cards
+              const { data: columns } = await github.rest.projects.listColumns({
+                project_id: project.id
+              });
+
+              let totalCards = 0;
+              let hacktoberfestCards = 0;
+
+              for (const column of columns) {
+                const { data: cards } = await github.rest.projects.listCards({
+                  column_id: column.id
+                });
+
+                totalCards += cards.length;
+
+                // Check if any cards are Hacktoberfest related
+                for (const card of cards) {
+                  if (card.content_url) {
+                    const issueNumber = card.content_url.split('/').pop();
+                    const { data: issue } = await github.rest.issues.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issueNumber
+                    });
+
+                    if (issue.labels.some(label => 
+                      label.name.toLowerCase().includes('hacktoberfest')
+                    )) {
+                      hacktoberfestCards++;
+                    }
+                  }
+                }
+              }
+
+              if (hacktoberfestCards > 0) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: project.number,
+                  body: `🎉 **Project Completed!** 
+                  
+                  Great work on completing the **${project.name}** project! 
+                  
+                  **Hacktoberfest Contributions:** ${hacktoberfestCards} cards
+                  **Total Cards:** ${totalCards} cards
+                  
+                  Thank you to all contributors who helped make Wooak better! 🚀`
+                });
+              }
+            }
+
+  pr-merged-celebration:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed' && github.event.pull_request.merged
+    steps:
+      - name: Celebrate merged PRs
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            // Check if this is a Hacktoberfest PR
+            const isHacktoberfest = pr.labels.some(label => 
+              label.name.toLowerCase().includes('hacktoberfest')
+            );
+
+            if (isHacktoberfest) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `🎉 **Congratulations!** 
+                
+                Your Hacktoberfest contribution to **Wooak** has been merged! 
+                
+                Thank you for helping improve our AI-powered SSH server management tool! 🚀
+                
+                **Next Steps:**
+                - 🌟 Star the repository if you found it helpful
+                - 🐛 Report any issues you encounter
+                - 💡 Suggest new features
+                - 📢 Share Wooak with others
+                
+                Keep contributing! 🎃`
+              });
+            }
