@@ -277,45 +277,18 @@ func (al *AuditLogger) backgroundWorker() {
 	for {
 		select {
 		case event := <-al.eventQueue:
-			al.logEventToFile(event)
+			al.LogEvent(event)
 		case <-al.ctx.Done():
 			// Process remaining events before shutdown
 			for {
 				select {
 				case event := <-al.eventQueue:
-					al.logEventToFile(event)
+					al.LogEvent(event)
 				default:
 					return
 				}
 			}
 		}
-	}
-}
-
-// logEventToFile writes a single event to the log file
-func (al *AuditLogger) logEventToFile(event *security.SecurityEvent) {
-	file, err := os.OpenFile(al.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		fmt.Printf("Failed to open audit log file: %v\n", err)
-		return
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			fmt.Printf("Failed to close audit log file: %v\n", closeErr)
-		}
-	}()
-
-	// Format the log entry
-	logEntry := fmt.Sprintf("[%s] %s: %s (Source: %s, Severity: %s)\n",
-		event.Timestamp.Format("2006-01-02 15:04:05"),
-		event.Type,
-		event.Message,
-		event.Source,
-		event.Severity,
-	)
-
-	if _, err := file.WriteString(logEntry); err != nil {
-		fmt.Printf("Failed to write to audit log: %v\n", err)
 	}
 }
 
