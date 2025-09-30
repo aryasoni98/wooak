@@ -48,38 +48,20 @@ func NewSecurityService(policy *security.SecurityPolicy) *SecurityService {
 func (s *SecurityService) ValidateSSHKey(keyData string) *security.KeyValidationResult {
 	// Check cache first
 	if cached, exists := s.keyCache.Get(keyData); exists {
-		// Log cache hit asynchronously
-		s.auditLog.LogEventAsync(security.NewSecurityEvent(
-			security.EventTypeKeyValidation,
-			security.SeverityInfo,
-			"SSH key validation served from cache",
-		).WithSource("security_service"))
 		return cached
 	}
 
-	// Log the validation attempt asynchronously
-	s.auditLog.LogEventAsync(security.NewSecurityEvent(
-		security.EventTypeKeyValidation,
-		security.SeverityInfo,
-		"SSH key validation requested",
-	).WithSource("security_service"))
-
+	// Validate and set the key in the cache
 	result := s.validator.ValidateKey(keyData)
-
-	// Cache the result
 	s.keyCache.Set(keyData, result)
 
-	// Log the validation result
-	severity := security.SeverityInfo
 	if !result.IsValid {
-		severity = security.SeverityWarning
+		s.auditLog.LogEventAsync(security.NewSecurityEvent(
+			security.EventTypeKeyValidation,
+			security.SeverityWarning,
+			"SSH key validation failed",
+		).WithSource("security_service").WithDetails("is_valid", result.IsValid))
 	}
-
-	s.auditLog.LogEventAsync(security.NewSecurityEvent(
-		security.EventTypeKeyValidation,
-		severity,
-		fmt.Sprintf("SSH key validation completed: %v", result.IsValid),
-	).WithSource("security_service").WithDetails("is_valid", result.IsValid))
 
 	return result
 }
