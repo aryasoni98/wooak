@@ -8,7 +8,7 @@ body:
       value: |
         🎉 Welcome to Hacktoberfest! Thank you for considering contributing to Wooak.
         
-        This template is specifically for Hacktoberfest contributors. Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before getting started.
+        This template is specifically for Hacktoberfest contributors. Please read our [[Contributing Guidelines](CONTRIBUTING.md)](CONTRIBUTING.md) and [[Code of Conduct](CODE_OF_CONDUCT.md)](CODE_OF_CONDUCT.md) before getting started.
 
   - type: dropdown
     id: contribution_type
@@ -68,9 +68,9 @@ body:
       label: Pre-contribution Checklist
       description: Please confirm you've completed these steps
       options:
-        - label: I have read the Contributing Guidelines
+        - label: I have read the [Contributing Guidelines](CONTRIBUTING.md)
           required: true
-        - label: I have read the Code of Conduct
+        - label: I have read the [Code of Conduct](CODE_OF_CONDUCT.md)
           required: true
         - label: I have checked existing issues to avoid duplicates
           required: true
@@ -83,7 +83,7 @@ body:
       label: Agreement
       description: By submitting this issue, you agree to follow our guidelines
       options:
-        - label: I agree to follow this project's Code of Conduct
+        - label: I agree to follow this project's [Code of Conduct](CODE_OF_CONDUCT.md)
           required: true
         - label: I understand that quality contributions are valued over quantity
           required: true

@@ -1,4 +1,3 @@
-version: 2
 project_name: wooak
 
 before:
@@ -18,8 +17,6 @@ builds:
     main: ./cmd/main.go
     ldflags:
       -X main.version={{.Version}} -X main.gitCommit={{.Commit}}
-
-
 
 archives:
   - formats: [ tar.gz ]
@@ -48,12 +45,13 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
 brews:
   - repository:
       owner: aryasoni98
       name: homebrew-tap
     homepage: "https://github.com/aryasoni98/wooak"
-    description: "A simple terminal UI for managing SSH connections.  "
+    description: "A simple terminal UI for managing SSH connections."
 
 release:
   footer: >-
