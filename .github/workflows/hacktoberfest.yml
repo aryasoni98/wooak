@@ -10,6 +10,12 @@ on:
   project:
     types: [created, closed, edited, deleted]
 
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+  projects: read
+
 jobs:
   hacktoberfest-check:
     runs-on: ubuntu-latest
