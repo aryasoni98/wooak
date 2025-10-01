@@ -5,6 +5,8 @@ on:
     types: [opened, labeled, closed]
   pull_request:
     types: [opened, labeled, closed, merged]
+  pull_request_target:
+    types: [opened, labeled, closed, merged]
   milestone:
     types: [created, closed]
   project:
@@ -20,7 +22,7 @@ jobs:
   hacktoberfest-check:
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'pull_request' && 
+      ((github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && 
        (github.event.label.name == 'hacktoberfest' || 
         contains(github.event.pull_request.labels.*.name, 'hacktoberfest')))
     steps:
@@ -29,7 +31,7 @@ jobs:
         with:
           script: |
             // Only run for pull request events
-            if (context.eventName !== 'pull_request') {
+            if (context.eventName !== 'pull_request' && context.eventName !== 'pull_request_target') {
               console.log('Not a pull request event, skipping...');
               return;
             }
@@ -224,7 +226,10 @@ jobs:
 
   pr-merged-celebration:
     runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged
+    if: |
+      (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') &&
+      github.event.action == 'closed' && 
+      github.event.pull_request.merged
     steps:
       - name: Celebrate merged PRs
         uses: actions/github-script@v6
