@@ -24,7 +24,7 @@ jobs:
       - name: Check if PR is valid for Hacktoberfest
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GH_TOKEN }}
+          github-token: ${{ secrets.GITHUBTOKEN }}
           script: |
             // Only run for pull request events
             if (context.eventName !== 'pull_request' && context.eventName !== 'pull_request_target') {
