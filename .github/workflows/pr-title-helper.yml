@@ -1,0 +1,114 @@
+name: PR Title Helper
+
+on:
+    pull_request:
+        types: [opened, edited]
+
+permissions:
+    pull-requests: write
+    contents: read
+
+jobs:
+    validate-and-help:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+
+            - name: Validate PR title and provide help
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      const { execSync } = require('child_process');
+                      const fs = require('fs');
+
+                      // Get PR title
+                      const prTitle = context.payload.pull_request.title;
+                      console.log(`Validating PR title: "${prTitle}"`);
+
+                      try {
+                        // Run the validator script
+                        const result = execSync(`node .github/scripts/validate-pr-title.js "${prTitle}"`, { 
+                          encoding: 'utf8',
+                          stdio: 'pipe'
+                        });
+                        
+                        // If we get here, the title is valid
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.payload.pull_request.number,
+                          body: `✅ **PR Title Valid!**
+                          
+                          Your PR title follows the conventional commit format correctly.
+                          
+                          **Title:** \`${prTitle}\`
+                          
+                          Great job! This will help with automated changelog generation and semantic versioning. 🎉`
+                        });
+                        
+                      } catch (error) {
+                        // Title is invalid, provide help
+                        const errorOutput = error.stdout || error.message;
+                        console.log('Validation failed:', errorOutput);
+                        
+                        // Extract suggestions from the output
+                        const suggestions = errorOutput.match(/Suggested titles:\s*\n((?:  - "[^"]+"\s*\n?)+)/);
+                        const suggestedTitles = suggestions ? suggestions[1].trim().split('\n').map(line => 
+                          line.replace(/^\s*-\s*"/, '').replace(/"$/, '')
+                        ) : [];
+                        
+                        let commentBody = `❌ **PR Title Needs Fixing**
+                        
+                        Your PR title doesn't follow the [conventional commit format](https://www.conventionalcommits.org/).
+                        
+                        **Current title:** \`${prTitle}\`
+                        
+                        **Required format:** \`<type>: <description>\` or \`<type>(<scope>): <description>\`
+                        
+                        **Available types:** feat, fix, docs, style, refactor, perf, test, chore, ci, build, upgrade, update, bump, security, deps
+                        
+                        **Examples:**
+                        - \`feat: add dark mode support\`
+                        - \`fix(ui): resolve connection timeout\`
+                        - \`docs: update installation guide\`
+                        - \`upgrade: bump Go version to 1.21\`
+                        - \`chore: update dependencies\``;
+                        
+                        if (suggestedTitles.length > 0) {
+                          commentBody += `\n\n**Suggested titles for your PR:**\n`;
+                          suggestedTitles.forEach(title => {
+                            commentBody += `- \`${title}\`\n`;
+                          });
+                        }
+                        
+                        commentBody += `\n\n**For Hacktoberfest PRs:** Use \`[Hacktoberfest]: <type>: <description>\`
+                        
+                        **Need help?** Check our [Conventional Commits Guide](.github/CONVENTIONAL_COMMITS.md) for detailed examples and guidelines.
+                        
+                        💡 **Tip:** You can edit your PR title by clicking the "Edit" button next to the title above.`;
+                        
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.payload.pull_request.number,
+                          body: commentBody
+                        });
+                        
+                        // Add a label to indicate the PR needs title fixing
+                        try {
+                          await github.rest.issues.addLabels({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.pull_request.number,
+                            labels: ['needs-pr-title-fix']
+                          });
+                        } catch (labelError) {
+                          console.log('Could not add label (might not exist):', labelError.message);
+                        }
+                      }

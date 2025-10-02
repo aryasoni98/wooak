@@ -4,6 +4,15 @@
 
 <!-- Provide a clear and concise description of what this PR does -->
 
+> **📝 PR Title Format**: Please ensure your PR title follows conventional commit format:
+> - `feat: add new feature`
+> - `fix: resolve bug in authentication`
+> - `docs: update installation guide`
+> - `chore: update dependencies`
+> - `upgrade: bump Go version to 1.21`
+> 
+> For Hacktoberfest PRs, use: `[Hacktoberfest]: feat: add new feature`
+
 ## 🔗 Related Issues
 
 <!-- Link to any related issues using "Fixes #123" or "Closes #123" -->
