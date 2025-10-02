@@ -37,6 +37,8 @@ type AuditLogger struct {
 	wg         sync.WaitGroup
 	started    bool
 	mutex      sync.RWMutex
+	startOnce  sync.Once
+	stopOnce   sync.Once
 }
 
 // NewAuditLogger creates a new audit logger
@@ -218,31 +220,27 @@ func (al *AuditLogger) writeValidEntries(entries []string) error {
 
 // StartBackgroundLogging starts the background logging worker
 func (al *AuditLogger) StartBackgroundLogging() {
-	al.mutex.Lock()
-	defer al.mutex.Unlock()
-
-	if al.started {
-		return // Already started
-	}
-
-	al.started = true
-	al.wg.Add(1)
-
-	go al.backgroundWorker()
+	al.startOnce.Do(func() {
+		al.started = true
+		al.wg.Add(1)
+		go al.backgroundWorker()
+	})
 }
 
 // StopBackgroundLogging stops the background logging worker
 func (al *AuditLogger) StopBackgroundLogging() {
-	al.mutex.Lock()
-	defer al.mutex.Unlock()
+	al.stopOnce.Do(func() {
+		al.mutex.Lock()
+		defer al.mutex.Unlock()
 
-	if !al.started {
-		return // Not started
-	}
+		if !al.started {
+			return
+		}
 
-	al.cancel()
-	al.wg.Wait()
-	al.started = false
+		al.cancel()
+		al.wg.Wait()
+		al.started = false
+	})
 }
 
 // LogEventAsync logs a security event asynchronously
