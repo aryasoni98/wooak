@@ -15,25 +15,49 @@
 package ui
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"sort"
 )
 
-// GetNetworkInterfaces returns a list of available network interface names
+func GetNetworkInterfacesWithContext(ctx context.Context) ([]string, error) {
+	type result struct {
+		names []string
+		err   error
+	}
+
+	ch := make(chan result, 1)
+
+	go func() {
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			ch <- result{nil, fmt.Errorf("failed to get network interfaces: %w", err)}
+			return
+		}
+
+		var names []string
+		for _, iface := range interfaces {
+			if iface.Flags&net.FlagUp != 0 {
+				names = append(names, iface.Name)
+			}
+		}
+		sort.Strings(names)
+		ch <- result{names, nil}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("operation timed out retrieving network interfaces")
+	case res := <-ch:
+		return res.names, res.err
+	}
+}
+
 func GetNetworkInterfaces() []string {
-	interfaces, err := net.Interfaces()
+	names, err := GetNetworkInterfacesWithContext(context.Background())
 	if err != nil {
 		return []string{}
 	}
-
-	var names []string
-	for _, iface := range interfaces {
-		// Skip down interfaces and loopback for cleaner list
-		if iface.Flags&net.FlagUp != 0 {
-			names = append(names, iface.Name)
-		}
-	}
-
-	sort.Strings(names)
 	return names
 }

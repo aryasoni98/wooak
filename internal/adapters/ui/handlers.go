@@ -15,6 +15,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -177,10 +178,30 @@ func (t *tui) handleSearchToggle() {
 
 func (t *tui) handleServerConnect() {
 	if server, ok := t.serverList.GetSelectedServer(); ok {
+		t.showLoading("Connecting to " + server.Alias + "...")
 
 		t.app.Suspend(func() {
-			_ = t.serverService.SSH(server.Alias)
+			err := t.serverService.SSH(server.Alias)
+			if err != nil {
+				t.app.QueueUpdateDraw(func() {
+					t.hideLoading()
+					modal := tview.NewModal().
+						SetText(fmt.Sprintf("SSH connection failed: %v", err)).
+						AddButtons([]string{"Retry", "Cancel"}).
+						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+							if buttonLabel == "Retry" {
+								t.handleServerConnect()
+							} else {
+								t.hideLoading()
+							}
+						})
+					t.app.SetRoot(modal, true)
+				})
+				return
+			}
+			t.hideLoading()
 		})
+
 		t.refreshServerList()
 	}
 }
@@ -245,10 +266,31 @@ func (t *tui) handleFormCancel() {
 func (t *tui) handlePingSelected() {
 	if server, ok := t.serverList.GetSelectedServer(); ok {
 		alias := server.Alias
-
 		t.showStatusTemp(fmt.Sprintf("Pinging %s…", alias))
+
 		go func() {
-			up, dur, err := t.serverService.Ping(server)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			doneCh := make(chan struct{})
+			var up bool
+			var dur time.Duration
+			var err error
+
+			go func() {
+				up, dur, err = t.serverService.Ping(server)
+				close(doneCh)
+			}()
+
+			select {
+			case <-ctx.Done():
+				t.app.QueueUpdateDraw(func() {
+					t.showStatusTempColor(fmt.Sprintf("Ping %s: Timeout", alias), "#FF6B6B")
+				})
+				return
+			case <-doneCh:
+			}
+
 			t.app.QueueUpdateDraw(func() {
 				if err != nil {
 					t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN (%v)", alias, err), "#FF6B6B")
@@ -277,10 +319,35 @@ func (t *tui) handleRefreshBackground() {
 		query = t.searchBar.InputField.GetText()
 	}
 
-	t.showStatusTemp("Refreshing…")
+	t.showLoading("Refreshing servers...")
 
 	go func(prevIdx int, q string) {
-		servers, err := t.serverService.ListServers(q)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		doneCh := make(chan struct{})
+		var servers []domain.Server
+		var err error
+
+		go func() {
+			servers, err = t.serverService.ListServers(q)
+			close(doneCh)
+		}()
+
+		select {
+		case <-ctx.Done():
+			t.app.QueueUpdateDraw(func() {
+				t.hideLoading()
+				t.showStatusTempColor("Refresh failed: operation timed out", "#FF6B6B")
+			})
+			return
+		case <-doneCh:
+		}
+
+		t.app.QueueUpdateDraw(func() {
+			t.hideLoading()
+		})
+
 		if err != nil {
 			t.app.QueueUpdateDraw(func() {
 				t.showStatusTempColor(fmt.Sprintf("Refresh failed: %v", err), "#FF6B6B")
@@ -290,7 +357,6 @@ func (t *tui) handleRefreshBackground() {
 		sortServersForUI(servers, t.sortMode)
 		t.app.QueueUpdateDraw(func() {
 			t.serverList.UpdateServers(servers)
-			// Try to restore selection if still valid
 			if prevIdx >= 0 && prevIdx < t.serverList.List.GetItemCount() {
 				t.serverList.SetCurrentItem(prevIdx)
 				if srv, ok := t.serverList.GetSelectedServer(); ok {

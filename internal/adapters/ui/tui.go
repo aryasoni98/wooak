@@ -15,8 +15,13 @@
 package ui
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"go.uber.org/zap"
 
+	"github.com/aryasoni98/wooak/internal/core/domain"
 	"github.com/aryasoni98/wooak/internal/core/ports"
 	aiService "github.com/aryasoni98/wooak/internal/core/services/ai"
 	securityService "github.com/aryasoni98/wooak/internal/core/services/security"
@@ -69,6 +74,7 @@ func (t *tui) Run() error {
 	defer func() {
 		if r := recover(); r != nil {
 			t.logger.Errorw("panic recovered", "error", r)
+			t.displayError(fmt.Errorf("unexpected error occurred: %v", r))
 		}
 	}()
 	t.app.EnableMouse(true)
@@ -77,6 +83,7 @@ func (t *tui) Run() error {
 	t.logger.Infow("starting TUI application", "version", t.version, "commit", t.commit)
 	if err := t.app.Run(); err != nil {
 		t.logger.Errorw("application run error", "error", err)
+		t.displayError(err)
 		return err
 	}
 	return nil
@@ -131,7 +138,35 @@ func (t *tui) bindEvents() *tui {
 }
 
 func (t *tui) loadInitialData() *tui {
-	servers, _ := t.serverService.ListServers("")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	t.showLoading("Loading servers...")
+
+	done := make(chan struct{})
+	var servers []domain.Server
+	var err error
+
+	go func() {
+		servers, err = t.serverService.ListServers("")
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.hideLoading()
+		t.displayError(fmt.Errorf("loading servers timed out"))
+		return t
+	case <-done:
+	}
+
+	t.hideLoading()
+
+	if err != nil {
+		t.displayError(fmt.Errorf("failed to load servers: %w", err))
+		return t
+	}
+
 	sortServersForUI(servers, t.sortMode)
 	t.updateListTitle()
 	t.serverList.UpdateServers(servers)
@@ -143,4 +178,30 @@ func (t *tui) updateListTitle() {
 	if t.serverList != nil {
 		t.serverList.SetTitle(" Servers — Sort: " + t.sortMode.String() + " ")
 	}
+}
+
+// showLoading displays a loading message in the status bar.
+func (t *tui) showLoading(message string) {
+	t.app.QueueUpdateDraw(func() {
+		t.statusBar.SetText("[yellow]" + message + " [::b](press Esc to cancel)[-:-:-]")
+		t.statusBar.SetText("status message here")
+	})
+}
+
+// hideLoading clears the status bar.
+func (t *tui) hideLoading() {
+	t.app.QueueUpdateDraw(func() {
+		t.statusBar.SetText("")
+	})
+}
+
+// displayError centralizes error display in status bar and logs it.
+func (t *tui) displayError(err error) {
+	if err == nil {
+		return
+	}
+	t.logger.Errorw("UI error", "error", err)
+	t.app.QueueUpdateDraw(func() {
+		t.statusBar.SetText("[red]Error: " + err.Error() + " [-]")
+	})
 }

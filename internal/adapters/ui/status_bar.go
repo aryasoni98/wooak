@@ -30,3 +30,14 @@ func NewStatusBar() *tview.TextView {
 	status.SetText(DefaultStatusText())
 	return status
 }
+
+func ShowStatusBar(status *tview.TextView, text string) {
+	if text == "" {
+		text = DefaultStatusText()
+	}
+	status.SetText(text)
+}
+
+func HideStatusBar(status *tview.TextView) {
+	status.SetText("")
+}
