@@ -72,7 +72,7 @@ make lint           # Run linter
 
 ### 4. Commit Your Changes
 
-Use semantic commit messages:
+Use semantic commit messages following the [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
 ```bash
 git add .
@@ -82,10 +82,13 @@ git commit -m "feat(ui): add new keyboard shortcut for search"
 **Commit Message Format:**
 - `feat(scope): description` - New features
 - `fix(scope): description` - Bug fixes
-- `improve(scope): description` - Improvements
 - `docs: description` - Documentation
 - `test(scope): description` - Tests
 - `refactor(scope): description` - Code refactoring
+- `chore: description` - Maintenance tasks
+- `upgrade: description` - Dependency upgrades
+- `security: description` - Security improvements
+- `perf: description` - Performance improvements
 
 **Available Scopes:**
 - `ui` - User interface changes
@@ -94,15 +97,40 @@ git commit -m "feat(ui): add new keyboard shortcut for search"
 - `config` - Configuration handling
 - `parser` - SSH config parsing
 - `core` - Core business logic
+- `deps` - Dependencies
+- `workflow` - GitHub Actions
+- `makefile` - Build system
 
-### 5. Push and Create Pull Request
+### 5. Pull Request Title Format
+
+**Important:** Your PR title must follow the same conventional commit format as your commit messages:
+
+✅ **Good PR Titles:**
+- `feat: add dark mode support to TUI`
+- `fix(ui): resolve SSH connection timeout`
+- `docs: update installation instructions`
+- `upgrade: bump Go version to 1.21`
+- `chore: update dependencies`
+
+❌ **Bad PR Titles:**
+- `Upgrade Codebase` (missing type prefix)
+- `Fix bug` (too vague)
+- `New feature` (missing colon)
+
+**For Hacktoberfest PRs:** Use `[Hacktoberfest]: <type>: <description>`
+- `[Hacktoberfest]: feat: add macOS support for Ollama`
+- `[Hacktoberfest]: fix: resolve connection timeout on Windows`
+
+**Need help?** Check our [Conventional Commits Guide](.github/CONVENTIONAL_COMMITS.md) for detailed examples.
+
+### 6. Push and Create Pull Request
 
 ```bash
 git push origin feature/your-feature-name
 ```
 
 Then create a Pull Request on GitHub with:
-- Clear title and description
+- Clear title following conventional commit format
 - Reference any related issues
 - Include screenshots for UI changes
 - Ensure all CI checks pass

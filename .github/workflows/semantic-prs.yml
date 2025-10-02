@@ -34,10 +34,36 @@ jobs:
             ci
             docs
             chore
+            upgrade
+            update
+            bump
+            security
+            perf
+            style
+            build
+            deps
 
           scopes: |
             ui
             cli
             config
             parser
+            deps
+            security
+            workflow
+            makefile
+            docker
+            ci
           requireScope: false
+          disallowScopes: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}" didn't match the configured pattern. Please ensure that the subject doesn't start with an uppercase character.
+          validateSingleCommit: false
+          ignoreLabels: |
+            skip-semantic-pr
+            hacktoberfest
+          ignoreTitlePattern: |
+            ^\[Hacktoberfest\]
+          ignoreCommits: |
+            ^(Merge|Revert)
