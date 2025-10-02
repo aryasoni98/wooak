@@ -24,7 +24,7 @@ jobs:
       - name: Check if PR is valid for Hacktoberfest
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUBTOKEN }}
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             // Only run for pull request events
             if (context.eventName !== 'pull_request' && context.eventName !== 'pull_request_target') {
@@ -86,6 +86,7 @@ jobs:
       - name: Welcome new contributors
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             const { data: issue } = await github.rest.issues.get({
               owner: context.repo.owner,
@@ -126,6 +127,7 @@ jobs:
       - name: Celebrate merged PRs
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
