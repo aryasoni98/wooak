@@ -131,10 +131,6 @@ coverage: test ## Run tests and show coverage
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-.PHONY: benchmark
-benchmark: ## Run benchmarks
-	go test -bench=. -benchmem ./...
-
 ##@ Building
 
 .PHONY: deps
