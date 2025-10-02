@@ -176,13 +176,33 @@ func (t *tui) handleSearchToggle() {
 }
 
 func (t *tui) handleServerConnect() {
-	if server, ok := t.serverList.GetSelectedServer(); ok {
+    if server, ok := t.serverList.GetSelectedServer(); ok {
+        t.showLoading("Connecting to " + server.Alias + "...")
 
-		t.app.Suspend(func() {
-			_ = t.serverService.SSH(server.Alias)
-		})
-		t.refreshServerList()
-	}
+        t.app.Suspend(func() {
+            err := t.serverService.SSH(server.Alias)
+            if err != nil {
+                t.app.QueueUpdateDraw(func() {
+                    t.hideLoading()
+                    modal := tview.NewModal().
+                        SetText(fmt.Sprintf("SSH connection failed: %v", err)).
+                        AddButtons([]string{"Retry", "Cancel"}).
+                        SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+                            if buttonLabel == "Retry" {
+                                t.handleServerConnect()
+                            } else {
+                                t.hideLoading()
+                            }
+                        })
+                    t.app.SetRoot(modal, true)
+                })
+                return
+            }
+            t.hideLoading()
+        })
+
+        t.refreshServerList()
+    }
 }
 
 func (t *tui) handleServerSelectionChange(server domain.Server) {
@@ -243,26 +263,48 @@ func (t *tui) handleFormCancel() {
 }
 
 func (t *tui) handlePingSelected() {
-	if server, ok := t.serverList.GetSelectedServer(); ok {
-		alias := server.Alias
+    if server, ok := t.serverList.GetSelectedServer(); ok {
+        alias := server.Alias
+        t.showStatusTemp(fmt.Sprintf("Pinging %s…", alias))
 
-		t.showStatusTemp(fmt.Sprintf("Pinging %s…", alias))
-		go func() {
-			up, dur, err := t.serverService.Ping(server)
-			t.app.QueueUpdateDraw(func() {
-				if err != nil {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN (%v)", alias, err), "#FF6B6B")
-					return
-				}
-				if up {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: UP (%s)", alias, dur), "#A0FFA0")
-				} else {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN", alias), "#FF6B6B")
-				}
-			})
-		}()
-	}
+        go func() {
+            ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+            defer cancel()
+
+            doneCh := make(chan struct{})
+            var up bool
+            var dur time.Duration
+            var err error
+
+            go func() {
+                up, dur, err = t.serverService.Ping(server)
+                close(doneCh)
+            }()
+
+            select {
+            case <-ctx.Done():
+                t.app.QueueUpdateDraw(func() {
+                    t.showStatusTempColor(fmt.Sprintf("Ping %s: Timeout", alias), "#FF6B6B")
+                })
+                return
+            case <-doneCh:
+            }
+
+            t.app.QueueUpdateDraw(func() {
+                if err != nil {
+                    t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN (%v)", alias, err), "#FF6B6B")
+                    return
+                }
+                if up {
+                    t.showStatusTempColor(fmt.Sprintf("Ping %s: UP (%s)", alias, dur), "#A0FFA0")
+                } else {
+                    t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN", alias), "#FF6B6B")
+                }
+            })
+        }()
+    }
 }
+
 
 func (t *tui) handleModalClose() {
 	t.returnToMain()
@@ -271,35 +313,59 @@ func (t *tui) handleModalClose() {
 // handleRefreshBackground refreshes the server list in the background without leaving the current screen.
 // It preserves the current search query and selection, shows transient status, and avoids concurrent runs.
 func (t *tui) handleRefreshBackground() {
-	currentIdx := t.serverList.GetCurrentItem()
-	query := ""
-	if t.searchVisible {
-		query = t.searchBar.InputField.GetText()
-	}
+    currentIdx := t.serverList.GetCurrentItem()
+    query := ""
+    if t.searchVisible {
+        query = t.searchBar.InputField.GetText()
+    }
 
-	t.showStatusTemp("Refreshing…")
+    t.showLoading("Refreshing servers...")
 
-	go func(prevIdx int, q string) {
-		servers, err := t.serverService.ListServers(q)
-		if err != nil {
-			t.app.QueueUpdateDraw(func() {
-				t.showStatusTempColor(fmt.Sprintf("Refresh failed: %v", err), "#FF6B6B")
-			})
-			return
-		}
-		sortServersForUI(servers, t.sortMode)
-		t.app.QueueUpdateDraw(func() {
-			t.serverList.UpdateServers(servers)
-			// Try to restore selection if still valid
-			if prevIdx >= 0 && prevIdx < t.serverList.List.GetItemCount() {
-				t.serverList.SetCurrentItem(prevIdx)
-				if srv, ok := t.serverList.GetSelectedServer(); ok {
-					t.details.UpdateServer(srv)
-				}
-			}
-			t.showStatusTemp(fmt.Sprintf("Refreshed %d servers", len(servers)))
-		})
-	}(currentIdx, query)
+    go func(prevIdx int, q string) {
+        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+
+        doneCh := make(chan struct{})
+        var servers []domain.Server
+        var err error
+
+        go func() {
+            servers, err = t.serverService.ListServers(q)
+            close(doneCh)
+        }()
+
+        select {
+        case <-ctx.Done():
+            t.app.QueueUpdateDraw(func() {
+                t.hideLoading()
+                t.showStatusTempColor("Refresh failed: operation timed out", "#FF6B6B")
+            })
+            return
+        case <-doneCh:
+        }
+
+        t.app.QueueUpdateDraw(func() {
+            t.hideLoading()
+        })
+
+        if err != nil {
+            t.app.QueueUpdateDraw(func() {
+                t.showStatusTempColor(fmt.Sprintf("Refresh failed: %v", err), "#FF6B6B")
+            })
+            return
+        }
+        sortServersForUI(servers, t.sortMode)
+        t.app.QueueUpdateDraw(func() {
+            t.serverList.UpdateServers(servers)
+            if prevIdx >= 0 && prevIdx < t.serverList.List.GetItemCount() {
+                t.serverList.SetCurrentItem(prevIdx)
+                if srv, ok := t.serverList.GetSelectedServer(); ok {
+                    t.details.UpdateServer(srv)
+                }
+            }
+            t.showStatusTemp(fmt.Sprintf("Refreshed %d servers", len(servers)))
+        })
+    }(currentIdx, query)
 }
 
 // =============================================================================
@@ -603,4 +669,29 @@ func (t *tui) showAIStatusPanel(aiPanel *ai.AIPanel) {
 	flex.AddItem(closeBtn, 3, 0, false)
 
 	t.app.SetRoot(flex, true)
+}
+
+func (t *tui) showLoading(message string) {
+    t.app.QueueUpdateDraw(func() {
+        t.statusBar.SetText("[yellow]" + message + " [::b](press Esc to cancel)[-:-:-]")
+        t.statusBar.Show()
+    })
+}
+
+func (t *tui) hideLoading() {
+    t.app.QueueUpdateDraw(func() {
+        t.statusBar.SetText("")
+        t.statusBar.Hide()
+    })
+}
+
+func (t *tui) displayError(err error) {
+    if err == nil {
+        return
+    }
+    t.logger.Errorw("UI error", "error", err)
+    t.app.QueueUpdateDraw(func() {
+        t.statusBar.SetText("[red]Error: " + err.Error() + " [-]")
+        t.statusBar.Show()
+    })
 }
