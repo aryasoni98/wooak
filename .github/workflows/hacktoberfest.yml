@@ -5,25 +5,29 @@ on:
     types: [opened, labeled, closed]
   pull_request:
     types: [opened, labeled, closed, merged]
-  milestone:
-    types: [created, closed]
-  project:
-    types: [created, closed, edited, deleted]
+  pull_request_target:
+    types: [opened, labeled, closed, merged]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
 
 jobs:
   hacktoberfest-check:
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'pull_request' && 
+      ((github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && 
        (github.event.label.name == 'hacktoberfest' || 
         contains(github.event.pull_request.labels.*.name, 'hacktoberfest')))
     steps:
       - name: Check if PR is valid for Hacktoberfest
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             // Only run for pull request events
-            if (context.eventName !== 'pull_request') {
+            if (context.eventName !== 'pull_request' && context.eventName !== 'pull_request_target') {
               console.log('Not a pull request event, skipping...');
               return;
             }
@@ -82,6 +86,7 @@ jobs:
       - name: Welcome new contributors
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             const { data: issue } = await github.rest.issues.get({
               owner: context.repo.owner,
@@ -112,117 +117,17 @@ jobs:
               });
             }
 
-  milestone-tracker:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'milestone'
-    steps:
-      - name: Track milestone progress
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const milestone = context.payload.milestone;
-
-            if (context.payload.action === 'closed') {
-              // Get all issues in this milestone
-              const { data: issues } = await github.rest.issues.listForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                milestone: milestone.number,
-                state: 'all'
-              });
-
-              const hacktoberfestIssues = issues.filter(issue => 
-                issue.labels.some(label => 
-                  label.name.toLowerCase().includes('hacktoberfest')
-                )
-              );
-
-              if (hacktoberfestIssues.length > 0) {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: milestone.number,
-                  body: `🎉 **Milestone Completed!** 
-                  
-                  Great work on completing the **${milestone.title}** milestone! 
-                  
-                  **Hacktoberfest Contributions:** ${hacktoberfestIssues.length} issues
-                  **Total Issues:** ${issues.length} issues
-                  
-                  Thank you to all contributors who helped make Wooak better! 🚀`
-                });
-              }
-            }
-
-  project-tracker:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'project'
-    steps:
-      - name: Track project progress
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const project = context.payload.project;
-
-            if (context.payload.action === 'closed') {
-              // Get project columns and cards
-              const { data: columns } = await github.rest.projects.listColumns({
-                project_id: project.id
-              });
-
-              let totalCards = 0;
-              let hacktoberfestCards = 0;
-
-              for (const column of columns) {
-                const { data: cards } = await github.rest.projects.listCards({
-                  column_id: column.id
-                });
-
-                totalCards += cards.length;
-
-                // Check if any cards are Hacktoberfest related
-                for (const card of cards) {
-                  if (card.content_url) {
-                    const issueNumber = card.content_url.split('/').pop();
-                    const { data: issue } = await github.rest.issues.get({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: issueNumber
-                    });
-
-                    if (issue.labels.some(label => 
-                      label.name.toLowerCase().includes('hacktoberfest')
-                    )) {
-                      hacktoberfestCards++;
-                    }
-                  }
-                }
-              }
-
-              if (hacktoberfestCards > 0) {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: project.number,
-                  body: `🎉 **Project Completed!** 
-                  
-                  Great work on completing the **${project.name}** project! 
-                  
-                  **Hacktoberfest Contributions:** ${hacktoberfestCards} cards
-                  **Total Cards:** ${totalCards} cards
-                  
-                  Thank you to all contributors who helped make Wooak better! 🚀`
-                });
-              }
-            }
-
   pr-merged-celebration:
     runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged
+    if: |
+      (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') &&
+      github.event.action == 'closed' && 
+      github.event.pull_request.merged
     steps:
       - name: Celebrate merged PRs
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
