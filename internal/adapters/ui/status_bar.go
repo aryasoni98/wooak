@@ -20,26 +20,24 @@ import (
 )
 
 func DefaultStatusText() string {
-    return "[#AAAAAA]↑↓[-] Navigate  • [#39BFFF]Enter[-] SSH  • [#39BFFF]c[-] Copy  • [#39BFFF]a[-] Add  • [#39BFFF]e[-] Edit  • [#39BFFF]g[-] Ping  • [#39BFFF]d[-] Delete  • [#39BFFF]p[-] Pin  • [#39BFFF]/[-] Search  • [#39BFFF]q[-] Quit"
+	return "[#AAAAAA]↑↓[-] Navigate  • [#39BFFF]Enter[-] SSH  • [#39BFFF]c[-] Copy  • [#39BFFF]a[-] Add  • [#39BFFF]e[-] Edit  • [#39BFFF]g[-] Ping  • [#39BFFF]d[-] Delete  • [#39BFFF]p[-] Pin  • [#39BFFF]/[-] Search  • [#39BFFF]q[-] Quit"
 }
 
 func NewStatusBar() *tview.TextView {
-    status := tview.NewTextView().SetDynamicColors(true)
-    status.SetBackgroundColor(tcell.Color235)
-    status.SetTextAlign(tview.AlignCenter)
-    status.SetText(DefaultStatusText())
-    return status
+	status := tview.NewTextView().SetDynamicColors(true)
+	status.SetBackgroundColor(tcell.Color235)
+	status.SetTextAlign(tview.AlignCenter)
+	status.SetText(DefaultStatusText())
+	return status
 }
 
 func ShowStatusBar(status *tview.TextView, text string) {
-    if text == "" {
-        text = DefaultStatusText()
-    }
-    status.SetText(text)
-    status.Show()
+	if text == "" {
+		text = DefaultStatusText()
+	}
+	status.SetText(text)
 }
 
 func HideStatusBar(status *tview.TextView) {
-    status.SetText("")
-    status.Hide()
+	status.SetText("")
 }
