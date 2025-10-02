@@ -1,0 +1,358 @@
+name: Auto-label Issues and PRs
+
+on:
+    issues:
+        types: [opened, edited]
+    pull_request:
+        types: [opened, edited]
+
+permissions:
+    issues: write
+    pull-requests: write
+    contents: read
+
+jobs:
+    auto-label-issues:
+        runs-on: ubuntu-latest
+        if: github.event_name == 'issues'
+        steps:
+            - name: Auto-label issues based on template and content
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      const { data: issue } = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.payload.issue.number
+                      });
+
+                      const labelsToAdd = [];
+                      const currentLabels = issue.labels.map(label => label.name);
+
+                      // Check if this is a Hacktoberfest issue
+                      if (issue.labels.some(label => label.name === 'hacktoberfest')) {
+                        console.log('Hacktoberfest issue detected');
+                        
+                        // Add Hacktoberfest labels
+                        if (!currentLabels.includes('hacktoberfest-accepted')) {
+                          labelsToAdd.push('hacktoberfest-accepted');
+                        }
+
+                        // Check contribution type from issue body
+                        const contributionType = extractContributionType(issue.body);
+                        if (contributionType) {
+                          const typeLabel = getContributionTypeLabel(contributionType);
+                          if (typeLabel && !currentLabels.includes(typeLabel)) {
+                            labelsToAdd.push(typeLabel);
+                          }
+                        }
+                      }
+
+                      // Add labels if any were found
+                      if (labelsToAdd.length > 0) {
+                        await github.rest.issues.addLabels({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issue.number,
+                          labels: labelsToAdd
+                        });
+
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: issue.number,
+                          body: `🏷️ **Auto-labeled issue** based on template and content
+                          
+                          **Labels added:** ${labelsToAdd.map(label => `\`${label}\``).join(', ')}
+                          
+                          These labels were automatically applied based on the issue template used.`
+                        });
+                      }
+
+                      // Helper function to extract contribution type from issue body
+                      function extractContributionType(body) {
+                        if (!body) return null;
+                        
+                        // Look for contribution type in the body
+                        const contributionMatch = body.match(/Contribution Type[:\s]*([^\n\r]+)/i);
+                        if (contributionMatch) {
+                          return contributionMatch[1].trim();
+                        }
+                        
+                        // Alternative patterns
+                        const patterns = [
+                          /Bug Fix/i,
+                          /New Feature/i,
+                          /Documentation/i,
+                          /Code Refactoring/i,
+                          /Test Coverage/i,
+                          /Performance Improvement/i,
+                          /Security Enhancement/i,
+                          /UI\/UX Improvement/i
+                        ];
+                        
+                        for (const pattern of patterns) {
+                          if (pattern.test(body)) {
+                            return body.match(pattern)[0];
+                          }
+                        }
+                        
+                        return null;
+                      }
+
+                      // Helper function to map contribution type to label
+                      function getContributionTypeLabel(contributionType) {
+                        const typeMapping = {
+                          'Bug Fix': 'bug',
+                          'New Feature': 'enhancement',
+                          'Documentation': 'documentation',
+                          'Code Refactoring': 'refactor',
+                          'Test Coverage': 'test',
+                          'Performance Improvement': 'performance',
+                          'Security Enhancement': 'security',
+                          'UI/UX Improvement': 'ui/ux'
+                        };
+                        
+                        // Try exact match first
+                        if (typeMapping[contributionType]) {
+                          return typeMapping[contributionType];
+                        }
+                        
+                        // Try partial match
+                        for (const [key, label] of Object.entries(typeMapping)) {
+                          if (contributionType.toLowerCase().includes(key.toLowerCase())) {
+                            return label;
+                          }
+                        }
+                        
+                        return null;
+                      }
+
+    auto-label-prs:
+        runs-on: ubuntu-latest
+        if: github.event_name == 'pull_request'
+        steps:
+            - name: Auto-label PRs based on referenced issues
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      const { data: pr } = await github.rest.pulls.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pull_number: context.payload.pull_request.number
+                      });
+
+                      // Extract issue numbers from PR body and title
+                      const issueNumbers = extractIssueNumbers(pr.body, pr.title);
+
+                      if (issueNumbers.length === 0) {
+                        console.log('No issues referenced in this PR');
+                        return;
+                      }
+
+                      const allLabelsToAdd = new Set();
+                      const processedIssues = [];
+
+                      // Process each referenced issue
+                      for (const issueNumber of issueNumbers) {
+                        const result = await processReferencedIssue(issueNumber);
+                        if (result.labels.length > 0) {
+                          result.labels.forEach(label => allLabelsToAdd.add(label));
+                          processedIssues.push({ 
+                            number: issueNumber, 
+                            labels: result.labels, 
+                            template: result.template,
+                            contributionType: result.contributionType
+                          });
+                        }
+                      }
+
+                      // Add all collected labels
+                      if (allLabelsToAdd.size > 0) {
+                        const labelsArray = Array.from(allLabelsToAdd);
+                        
+                        // Get current PR labels to avoid duplicates
+                        const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: pr.number
+                        });
+
+                        const currentLabelNames = currentLabels.map(label => label.name);
+                        const newLabels = labelsArray.filter(label => !currentLabelNames.includes(label));
+
+                        if (newLabels.length > 0) {
+                          await github.rest.issues.addLabels({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: pr.number,
+                            labels: newLabels
+                          });
+
+                          // Create detailed comment
+                          const commentBody = createLabelingComment(processedIssues, newLabels);
+                          await github.rest.issues.createComment({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: pr.number,
+                            body: commentBody
+                          });
+                        }
+                      }
+
+                      // Helper function to extract issue numbers
+                      function extractIssueNumbers(body, title) {
+                        const issueRegex = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*#(\d+)/gi;
+                        const numbers = [];
+                        
+                        [body, title].forEach(text => {
+                          if (text) {
+                            const matches = text.match(issueRegex);
+                            if (matches) {
+                              matches.forEach(match => {
+                                const number = match.match(/#(\d+)/)[1];
+                                numbers.push(parseInt(number));
+                              });
+                            }
+                          }
+                        });
+                        
+                        return [...new Set(numbers)];
+                      }
+
+                      // Process each referenced issue
+                      async function processReferencedIssue(issueNumber) {
+                        try {
+                          const { data: issue } = await github.rest.issues.get({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: issueNumber
+                          });
+
+                          const labels = [];
+                          let template = 'unknown';
+                          let contributionType = null;
+
+                          // Check for Hacktoberfest template
+                          if (issue.labels.some(label => label.name === 'hacktoberfest')) {
+                            template = 'hacktoberfest';
+                            labels.push('hacktoberfest', 'hacktoberfest-accepted');
+                            
+                            // Extract contribution type from issue body
+                            contributionType = extractContributionType(issue.body);
+                            if (contributionType) {
+                              const typeLabel = getContributionTypeLabel(contributionType);
+                              if (typeLabel) {
+                                labels.push(typeLabel);
+                              }
+                            }
+                            
+                            // Add difficulty-based labels
+                            if (issue.labels.some(label => label.name === 'good first issue')) {
+                              labels.push('good first issue');
+                            }
+                            if (issue.labels.some(label => label.name === 'help wanted')) {
+                              labels.push('help wanted');
+                            }
+                          } else {
+                            // Handle non-Hacktoberfest issues
+                            if (issue.labels.some(label => label.name === 'bug')) {
+                              template = 'bug_report';
+                              labels.push('bug');
+                            } else if (issue.labels.some(label => label.name === 'enhancement')) {
+                              template = 'feature_request';
+                              labels.push('enhancement');
+                            }
+                          }
+
+                          // Copy other relevant labels from the issue
+                          const relevantLabels = ['priority: high', 'priority: medium', 'priority: low', 'documentation', 'test', 'refactor', 'performance', 'security', 'ui/ux'];
+                          issue.labels.forEach(label => {
+                            if (relevantLabels.includes(label.name)) {
+                              labels.push(label.name);
+                            }
+                          });
+
+                          return { labels, template, contributionType };
+                        } catch (error) {
+                          console.log(`Error processing issue #${issueNumber}: ${error.message}`);
+                          return { labels: [], template: 'error', contributionType: null };
+                        }
+                      }
+
+                      // Helper function to extract contribution type from issue body
+                      function extractContributionType(body) {
+                        if (!body) return null;
+                        
+                        // Look for contribution type in the body
+                        const contributionMatch = body.match(/Contribution Type[:\s]*([^\n\r]+)/i);
+                        if (contributionMatch) {
+                          return contributionMatch[1].trim();
+                        }
+                        
+                        // Alternative patterns
+                        const patterns = [
+                          /Bug Fix/i,
+                          /New Feature/i,
+                          /Documentation/i,
+                          /Code Refactoring/i,
+                          /Test Coverage/i,
+                          /Performance Improvement/i,
+                          /Security Enhancement/i,
+                          /UI\/UX Improvement/i
+                        ];
+                        
+                        for (const pattern of patterns) {
+                          if (pattern.test(body)) {
+                            return body.match(pattern)[0];
+                          }
+                        }
+                        
+                        return null;
+                      }
+
+                      // Helper function to map contribution type to label
+                      function getContributionTypeLabel(contributionType) {
+                        const typeMapping = {
+                          'Bug Fix': 'bug',
+                          'New Feature': 'enhancement',
+                          'Documentation': 'documentation',
+                          'Code Refactoring': 'refactor',
+                          'Test Coverage': 'test',
+                          'Performance Improvement': 'performance',
+                          'Security Enhancement': 'security',
+                          'UI/UX Improvement': 'ui/ux'
+                        };
+                        
+                        // Try exact match first
+                        if (typeMapping[contributionType]) {
+                          return typeMapping[contributionType];
+                        }
+                        
+                        // Try partial match
+                        for (const [key, label] of Object.entries(typeMapping)) {
+                          if (contributionType.toLowerCase().includes(key.toLowerCase())) {
+                            return label;
+                          }
+                        }
+                        
+                        return null;
+                      }
+
+                      // Create detailed comment about labeling
+                      function createLabelingComment(processedIssues, labelsArray) {
+                        let comment = '🏷️ **Auto-labeled PR** based on referenced issues:\n\n';
+                        
+                        processedIssues.forEach(issue => {
+                          comment += `- **Issue #${issue.number}** (${issue.template} template)`;
+                          if (issue.contributionType) {
+                            comment += ` - ${issue.contributionType}`;
+                          }
+                          comment += `\n  Labels: ${issue.labels.map(l => `\`${l}\``).join(', ')}\n`;
+                        });
+                        
+                        comment += `\n**Total labels added:** ${labelsArray.map(label => `\`${label}\``).join(', ')}\n\n`;
+                        comment += 'These labels were automatically applied based on the issue templates and contribution types.';
+                        
+                        return comment;
+                      }
