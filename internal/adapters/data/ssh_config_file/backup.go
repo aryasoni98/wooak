@@ -27,7 +27,7 @@ import (
 // createBackup creates a timestamped backup of the current config file
 func (r *Repository) createBackup() error {
 	start := time.Now()
-	
+
 	if _, err := r.fileSystem.Stat(r.configPath); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
@@ -79,7 +79,7 @@ func (r *Repository) createBackup() error {
 		}
 		r.logger.Infof("Removed old backup: %s", backupPath)
 	}
-	
+
 	if r.monitoring != nil {
 		r.monitoring.RecordOperation("ssh_config_backup", time.Since(start), true)
 		r.monitoring.GetMetrics().IncrementCounter("ssh_config_backup_total", map[string]string{

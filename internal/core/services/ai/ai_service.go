@@ -67,7 +67,7 @@ func (s *AIService) SetMonitoring(mon *monitoring.MonitoringService) {
 // GenerateRecommendation generates AI recommendations for SSH configurations
 func (s *AIService) GenerateRecommendation(ctx context.Context, config map[string]string, context string) (*ai.AIRecommendation, error) {
 	start := time.Now()
-	
+
 	if !s.config.Enabled {
 		return nil, fmt.Errorf("AI service is disabled")
 	}
@@ -264,13 +264,13 @@ func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*
 	}
 
 	response.ProcessingTime = time.Since(startTime)
-	
+
 	if s.monitoring != nil {
 		s.monitoring.GetMetrics().RecordTimer("ai_request_duration_seconds", response.ProcessingTime, map[string]string{
 			"provider": string(s.config.Provider),
 			"type":     string(request.Type),
 		})
-		
+
 		// Record token usage if available
 		if response.TokensUsed > 0 {
 			s.monitoring.GetMetrics().SetGauge("ai_tokens_used_total", float64(response.TokensUsed), map[string]string{
@@ -279,7 +279,7 @@ func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*
 			})
 		}
 	}
-	
+
 	return response, nil
 }
 

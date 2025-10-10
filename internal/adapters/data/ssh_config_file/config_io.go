@@ -27,7 +27,7 @@ import (
 // If the file does not exist, it returns an empty config without error to support first-run behavior.
 func (r *Repository) loadConfig() (*ssh_config.Config, error) {
 	start := time.Now()
-	
+
 	file, err := r.fileSystem.Open(r.configPath)
 	if err != nil {
 		if r.fileSystem.IsNotExist(err) {

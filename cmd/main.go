@@ -64,16 +64,16 @@ func main() {
 			ctx := r.Context()
 			healthSummary := monitoringService.GetHealthMonitor().GetHealthSummary(ctx)
 			w.Header().Set("Content-Type", "application/json")
-			
+
 			// Simple health status response
 			if healthSummary["overall_status"] == monitoring.Healthy {
 				w.WriteHeader(http.StatusOK)
 			} else {
 				w.WriteHeader(http.StatusServiceUnavailable)
 			}
-			
-			fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`, 
-				healthSummary["overall_status"], 
+
+			fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`,
+				healthSummary["overall_status"],
 				healthSummary["last_checked"])
 		})
 
@@ -93,12 +93,12 @@ func main() {
 	metaDataFile := filepath.Join(home, ".wooak", "metadata.json")
 
 	serverRepo := ssh_config_file.NewRepository(log, sshConfigFile, metaDataFile)
-	
+
 	// Set monitoring for repository
 	if repo, ok := serverRepo.(*ssh_config_file.Repository); ok {
 		repo.SetMonitoring(monitoringService)
 	}
-	
+
 	serverService := services.NewServerService(log, serverRepo)
 
 	// Initialize security service
@@ -108,7 +108,7 @@ func main() {
 	// Initialize AI service
 	aiConfig := aiDomain.DefaultAIConfig()
 	aiSvc := aiService.NewAIService(aiConfig)
-	
+
 	// Set monitoring for AI service
 	aiSvc.SetMonitoring(monitoringService)
 
