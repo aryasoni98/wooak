@@ -16,6 +16,7 @@ package monitoring
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -442,5 +443,155 @@ func TestMonitoringService_GetPerformanceReport(t *testing.T) {
 
 	if report["timers"] == nil {
 		t.Error("Expected timers to be present")
+	}
+}
+
+func TestMetricsCollectorPrometheusFormat(t *testing.T) {
+	collector := NewMetricsCollector()
+
+	// Add various metrics
+	collector.IncrementCounter("http_requests_total", map[string]string{
+		"method": "GET",
+		"status": "200",
+	})
+	collector.IncrementCounter("http_requests_total", map[string]string{
+		"method": "POST",
+		"status": "201",
+	})
+	collector.SetGauge("memory_usage_bytes", 1024.0, map[string]string{
+		"component": "cache",
+	})
+
+	// Get Prometheus format
+	output := collector.ToPrometheusFormat()
+
+	// Verify output contains expected elements
+	if !strings.Contains(output, "# TYPE http_requests_total counter") {
+		t.Error("Expected TYPE declaration for http_requests_total")
+	}
+
+	if !strings.Contains(output, "# TYPE memory_usage_bytes gauge") {
+		t.Error("Expected TYPE declaration for memory_usage_bytes")
+	}
+
+	if !strings.Contains(output, `http_requests_total{method="GET",status="200"}`) {
+		t.Error("Expected metric with labels")
+	}
+
+	if !strings.Contains(output, `memory_usage_bytes{component="cache"}`) {
+		t.Error("Expected gauge metric with labels")
+	}
+}
+
+func TestMetricsCollectorRuntimeMetrics(t *testing.T) {
+	collector := NewMetricsCollector()
+	collector.Start()
+	defer collector.Stop()
+
+	// Manually trigger runtime metrics collection
+	collector.collectRuntimeMetrics()
+
+	// Get metrics
+	metrics := collector.GetAllMetrics()
+
+	// Check for runtime metrics
+	foundMemoryMetric := false
+	foundGoroutineMetric := false
+
+	for _, metric := range metrics {
+		if strings.HasPrefix(metric.Name, "go_memory_") {
+			foundMemoryMetric = true
+		}
+		if metric.Name == "go_goroutines" {
+			foundGoroutineMetric = true
+		}
+	}
+
+	if !foundMemoryMetric {
+		t.Error("Expected memory metrics to be collected")
+	}
+
+	if !foundGoroutineMetric {
+		t.Error("Expected goroutine metrics to be collected")
+	}
+}
+
+func TestMetricsCollectorFileIOMetrics(t *testing.T) {
+	service := NewMonitoringService()
+	service.Start()
+	defer service.Stop()
+
+	// Simulate file I/O operations
+	service.RecordOperation("ssh_config_load", 50*time.Millisecond, true)
+	service.RecordOperation("ssh_config_save", 100*time.Millisecond, true)
+	service.RecordOperation("ssh_config_backup", 75*time.Millisecond, true)
+
+	metrics := service.GetMetrics().GetAllMetrics()
+
+	// Verify file I/O metrics exist
+	foundLoadMetric := false
+	foundSaveMetric := false
+	foundBackupMetric := false
+
+	for _, metric := range metrics {
+		if metric.Name == "operation_duration" && metric.Labels["operation"] == "ssh_config_load" {
+			foundLoadMetric = true
+		}
+		if metric.Name == "operation_duration" && metric.Labels["operation"] == "ssh_config_save" {
+			foundSaveMetric = true
+		}
+		if metric.Name == "operation_duration" && metric.Labels["operation"] == "ssh_config_backup" {
+			foundBackupMetric = true
+		}
+	}
+
+	if !foundLoadMetric {
+		t.Error("Expected ssh_config_load metric to be recorded")
+	}
+	if !foundSaveMetric {
+		t.Error("Expected ssh_config_save metric to be recorded")
+	}
+	if !foundBackupMetric {
+		t.Error("Expected ssh_config_backup metric to be recorded")
+	}
+}
+
+func TestMetricsCollectorAIMetrics(t *testing.T) {
+	service := NewMonitoringService()
+	service.Start()
+	defer service.Stop()
+
+	// Simulate AI operations
+	service.RecordCacheHit("ai_recommendation")
+	service.RecordCacheMiss("ai_recommendation")
+	service.RecordOperation("ai_recommendation", 200*time.Millisecond, true)
+
+	metrics := service.GetMetrics().GetAllMetrics()
+
+	// Verify AI metrics exist
+	foundCacheHit := false
+	foundCacheMiss := false
+	foundAIOperation := false
+
+	for _, metric := range metrics {
+		if metric.Name == "cache_hit" && metric.Labels["cache"] == "ai_recommendation" {
+			foundCacheHit = true
+		}
+		if metric.Name == "cache_miss" && metric.Labels["cache"] == "ai_recommendation" {
+			foundCacheMiss = true
+		}
+		if metric.Name == "operation_duration" && metric.Labels["operation"] == "ai_recommendation" {
+			foundAIOperation = true
+		}
+	}
+
+	if !foundCacheHit {
+		t.Error("Expected ai cache_hit metric to be recorded")
+	}
+	if !foundCacheMiss {
+		t.Error("Expected ai cache_miss metric to be recorded")
+	}
+	if !foundAIOperation {
+		t.Error("Expected ai_recommendation operation metric to be recorded")
 	}
 }

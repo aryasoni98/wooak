@@ -15,6 +15,10 @@
 package monitoring
 
 import (
+	"fmt"
+	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -251,9 +255,115 @@ func (mc *MetricsCollector) collectSystemMetrics() {
 
 // collectRuntimeMetrics collects Go runtime metrics
 func (mc *MetricsCollector) collectRuntimeMetrics() {
-	// This would collect actual runtime metrics
-	// For now, we'll just record that we're collecting
-	mc.IncrementCounter("system_metrics_collected", map[string]string{
-		"source": "runtime",
-	})
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	// Memory metrics
+	mc.SetGauge("go_memory_alloc_bytes", float64(m.Alloc), nil)
+	mc.SetGauge("go_memory_total_alloc_bytes", float64(m.TotalAlloc), nil)
+	mc.SetGauge("go_memory_sys_bytes", float64(m.Sys), nil)
+	mc.SetGauge("go_memory_heap_alloc_bytes", float64(m.HeapAlloc), nil)
+	mc.SetGauge("go_memory_heap_sys_bytes", float64(m.HeapSys), nil)
+	mc.SetGauge("go_memory_heap_idle_bytes", float64(m.HeapIdle), nil)
+	mc.SetGauge("go_memory_heap_inuse_bytes", float64(m.HeapInuse), nil)
+	mc.SetGauge("go_memory_heap_released_bytes", float64(m.HeapReleased), nil)
+	mc.SetGauge("go_memory_heap_objects", float64(m.HeapObjects), nil)
+
+	// GC metrics
+	mc.SetGauge("go_gc_cycles_total", float64(m.NumGC), nil)
+	mc.SetGauge("go_gc_pause_total_ns", float64(m.PauseTotalNs), nil)
+
+	// Goroutines
+	mc.SetGauge("go_goroutines", float64(runtime.NumGoroutine()), nil)
+
+	// CPU count
+	mc.SetGauge("go_cpu_count", float64(runtime.NumCPU()), nil)
+}
+
+// ToPrometheusFormat exports metrics in Prometheus exposition format
+func (mc *MetricsCollector) ToPrometheusFormat() string {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	var builder strings.Builder
+
+	// Group metrics by name
+	metricsByName := make(map[string][]*Metric)
+	for _, metric := range mc.metrics {
+		metricsByName[metric.Name] = append(metricsByName[metric.Name], metric)
+	}
+
+	// Sort metric names for consistent output
+	names := make([]string, 0, len(metricsByName))
+	for name := range metricsByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Write each metric
+	for _, name := range names {
+		metrics := metricsByName[name]
+		if len(metrics) == 0 {
+			continue
+		}
+
+		// Write TYPE and HELP comments
+		metricType := metrics[0].Type
+		prometheusType := mc.getPrometheusType(metricType)
+		builder.WriteString(fmt.Sprintf("# TYPE %s %s\n", name, prometheusType))
+		if metrics[0].Description != "" {
+			builder.WriteString(fmt.Sprintf("# HELP %s %s\n", name, metrics[0].Description))
+		}
+
+		// Write metric values
+		for _, metric := range metrics {
+			if len(metric.Labels) > 0 {
+				labelStr := mc.formatLabels(metric.Labels)
+				builder.WriteString(fmt.Sprintf("%s{%s} %g %d\n", name, labelStr, metric.Value, metric.Timestamp.UnixMilli()))
+			} else {
+				builder.WriteString(fmt.Sprintf("%s %g %d\n", name, metric.Value, metric.Timestamp.UnixMilli()))
+			}
+		}
+
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
+}
+
+// getPrometheusType converts internal metric type to Prometheus type
+func (mc *MetricsCollector) getPrometheusType(metricType MetricType) string {
+	switch metricType {
+	case Counter:
+		return "counter"
+	case Gauge:
+		return "gauge"
+	case Histogram:
+		return "histogram"
+	case Timer:
+		return "histogram"
+	default:
+		return "untyped"
+	}
+}
+
+// formatLabels formats labels for Prometheus exposition format
+func (mc *MetricsCollector) formatLabels(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	// Sort labels for consistent output
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(labels))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=\"%s\"", k, labels[k]))
+	}
+
+	return strings.Join(parts, ",")
 }

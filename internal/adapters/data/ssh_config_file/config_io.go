@@ -26,10 +26,18 @@ import (
 // loadConfig reads and parses the SSH config file.
 // If the file does not exist, it returns an empty config without error to support first-run behavior.
 func (r *Repository) loadConfig() (*ssh_config.Config, error) {
+	start := time.Now()
+
 	file, err := r.fileSystem.Open(r.configPath)
 	if err != nil {
 		if r.fileSystem.IsNotExist(err) {
+			if r.monitoring != nil {
+				r.monitoring.RecordOperation("ssh_config_load", time.Since(start), true)
+			}
 			return &ssh_config.Config{Hosts: []*ssh_config.Host{}}, nil
+		}
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_load", time.Since(start), false)
 		}
 		return nil, fmt.Errorf("failed to open config file: %w", err)
 	}
@@ -39,9 +47,28 @@ func (r *Repository) loadConfig() (*ssh_config.Config, error) {
 		}
 	}()
 
+	// Get file info for size metrics
+	if r.monitoring != nil {
+		if info, err := r.fileSystem.Stat(r.configPath); err == nil {
+			r.monitoring.GetMetrics().SetGauge("ssh_config_file_size_bytes", float64(info.Size()), map[string]string{
+				"operation": "load",
+			})
+		}
+	}
+
 	cfg, err := ssh_config.Decode(file)
 	if err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_load", time.Since(start), false)
+		}
 		return nil, fmt.Errorf("failed to decode config: %w", err)
+	}
+
+	if r.monitoring != nil {
+		r.monitoring.RecordOperation("ssh_config_load", time.Since(start), true)
+		r.monitoring.GetMetrics().IncrementCounter("ssh_config_load_total", map[string]string{
+			"status": "success",
+		})
 	}
 
 	return cfg, nil
@@ -49,10 +76,14 @@ func (r *Repository) loadConfig() (*ssh_config.Config, error) {
 
 // saveConfig writes the SSH config back to the file with atomic operations and backup management.
 func (r *Repository) saveConfig(cfg *ssh_config.Config) error {
+	start := time.Now()
 	configDir := filepath.Dir(r.configPath)
 
 	tempFile, err := r.createTempFile(configDir)
 	if err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_save", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 
@@ -63,20 +94,48 @@ func (r *Repository) saveConfig(cfg *ssh_config.Config) error {
 	}()
 
 	if err := r.writeConfigToFile(tempFile, cfg); err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_save", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to write config to temporary file: %w", err)
+	}
+
+	// Get file info for size metrics
+	if r.monitoring != nil {
+		if info, err := r.fileSystem.Stat(tempFile); err == nil {
+			r.monitoring.GetMetrics().SetGauge("ssh_config_file_size_bytes", float64(info.Size()), map[string]string{
+				"operation": "save",
+			})
+		}
 	}
 
 	// Ensure a one-time original backup exists before any modifications managed by wooak.
 	if err := r.createOriginalBackupIfNeeded(); err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_save", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to create original backup: %w", err)
 	}
 
 	if err := r.createBackup(); err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_save", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
 	if err := r.fileSystem.Rename(tempFile, r.configPath); err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_save", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to atomically replace config file: %w", err)
+	}
+
+	if r.monitoring != nil {
+		r.monitoring.RecordOperation("ssh_config_save", time.Since(start), true)
+		r.monitoring.GetMetrics().IncrementCounter("ssh_config_save_total", map[string]string{
+			"status": "success",
+		})
 	}
 
 	r.logger.Infof("SSH config successfully updated: %s", r.configPath)
