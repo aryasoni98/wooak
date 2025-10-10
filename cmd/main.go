@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -27,6 +28,7 @@ import (
 	securityDomain "github.com/aryasoni98/wooak/internal/core/domain/security"
 	"github.com/aryasoni98/wooak/internal/core/services"
 	aiService "github.com/aryasoni98/wooak/internal/core/services/ai"
+	"github.com/aryasoni98/wooak/internal/core/services/monitoring"
 	securityService "github.com/aryasoni98/wooak/internal/core/services/security"
 	"github.com/spf13/cobra"
 )
@@ -46,6 +48,41 @@ func main() {
 	//nolint:errcheck // log.Sync may return an error which is safe to ignore here
 	defer log.Sync()
 
+	// Initialize monitoring service
+	monitoringService := monitoring.NewMonitoringService()
+	monitoringService.Start()
+	defer monitoringService.Stop()
+
+	// Start HTTP server for metrics endpoint
+	go func() {
+		http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+			fmt.Fprint(w, monitoringService.GetMetrics().ToPrometheusFormat())
+		})
+
+		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			healthSummary := monitoringService.GetHealthMonitor().GetHealthSummary(ctx)
+			w.Header().Set("Content-Type", "application/json")
+			
+			// Simple health status response
+			if healthSummary["overall_status"] == monitoring.Healthy {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}
+			
+			fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`, 
+				healthSummary["overall_status"], 
+				healthSummary["last_checked"])
+		})
+
+		log.Infow("Starting metrics server", "port", 9090)
+		if err := http.ListenAndServe(":9090", nil); err != nil {
+			log.Errorw("Metrics server failed", "error", err)
+		}
+	}()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Errorw("failed to get user home directory", "error", err)
@@ -56,6 +93,12 @@ func main() {
 	metaDataFile := filepath.Join(home, ".wooak", "metadata.json")
 
 	serverRepo := ssh_config_file.NewRepository(log, sshConfigFile, metaDataFile)
+	
+	// Set monitoring for repository
+	if repo, ok := serverRepo.(*ssh_config_file.Repository); ok {
+		repo.SetMonitoring(monitoringService)
+	}
+	
 	serverService := services.NewServerService(log, serverRepo)
 
 	// Initialize security service
@@ -65,6 +108,9 @@ func main() {
 	// Initialize AI service
 	aiConfig := aiDomain.DefaultAIConfig()
 	aiSvc := aiService.NewAIService(aiConfig)
+	
+	// Set monitoring for AI service
+	aiSvc.SetMonitoring(monitoringService)
 
 	tui := ui.NewTUI(log, serverService, securitySvc, aiSvc, version, gitCommit)
 

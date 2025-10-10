@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/aryasoni98/wooak/internal/core/domain/ai"
+	"github.com/aryasoni98/wooak/internal/core/services/monitoring"
 )
 
 // AIService provides AI-powered functionality for Wooak
@@ -32,6 +33,7 @@ type AIService struct {
 	httpClient *http.Client
 	cache      *AICache
 	pool       *ConnectionPool
+	monitoring *monitoring.MonitoringService
 }
 
 // NewAIService creates a new AI service
@@ -51,13 +53,21 @@ func NewAIService(config *ai.AIConfig) *AIService {
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
-		cache: NewAICache(config.CacheTTL),
-		pool:  NewConnectionPool(poolConfig),
+		cache:      NewAICache(config.CacheTTL),
+		pool:       NewConnectionPool(poolConfig),
+		monitoring: nil, // Will be set via SetMonitoring
 	}
+}
+
+// SetMonitoring sets the monitoring service for the AI service
+func (s *AIService) SetMonitoring(mon *monitoring.MonitoringService) {
+	s.monitoring = mon
 }
 
 // GenerateRecommendation generates AI recommendations for SSH configurations
 func (s *AIService) GenerateRecommendation(ctx context.Context, config map[string]string, context string) (*ai.AIRecommendation, error) {
+	start := time.Now()
+	
 	if !s.config.Enabled {
 		return nil, fmt.Errorf("AI service is disabled")
 	}
@@ -66,8 +76,16 @@ func (s *AIService) GenerateRecommendation(ctx context.Context, config map[strin
 	cacheKey := fmt.Sprintf("recommendation:%s", generateHash(config))
 	if cached, exists := s.cache.Get(cacheKey); exists {
 		if rec, ok := cached.(*ai.AIRecommendation); ok {
+			if s.monitoring != nil {
+				s.monitoring.RecordCacheHit("ai_recommendation")
+				s.monitoring.RecordOperation("ai_recommendation", time.Since(start), true)
+			}
 			return rec, nil
 		}
+	}
+
+	if s.monitoring != nil {
+		s.monitoring.RecordCacheMiss("ai_recommendation")
 	}
 
 	// Build prompt
@@ -91,6 +109,9 @@ func (s *AIService) GenerateRecommendation(ctx context.Context, config map[strin
 
 	response, err := s.makeAIRequest(ctx, request)
 	if err != nil {
+		if s.monitoring != nil {
+			s.monitoring.RecordOperation("ai_recommendation", time.Since(start), false)
+		}
 		return nil, fmt.Errorf("failed to generate recommendation: %w", err)
 	}
 
@@ -100,6 +121,14 @@ func (s *AIService) GenerateRecommendation(ctx context.Context, config map[strin
 	// Cache the result
 	if s.config.CacheEnabled {
 		s.cache.Set(cacheKey, recommendation)
+	}
+
+	if s.monitoring != nil {
+		s.monitoring.RecordOperation("ai_recommendation", time.Since(start), true)
+		s.monitoring.GetMetrics().IncrementCounter("ai_request_total", map[string]string{
+			"type":   "recommendation",
+			"status": "success",
+		})
 	}
 
 	return recommendation, nil
@@ -215,14 +244,42 @@ func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*
 	case ai.ProviderOpenAI:
 		response, err = s.makeOpenAIRequest(ctx, request)
 	default:
+		if s.monitoring != nil {
+			s.monitoring.GetMetrics().IncrementCounter("ai_request_error_total", map[string]string{
+				"provider": string(s.config.Provider),
+				"reason":   "unsupported_provider",
+			})
+		}
 		return nil, fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
 	}
 
 	if err != nil {
+		if s.monitoring != nil {
+			s.monitoring.GetMetrics().IncrementCounter("ai_request_error_total", map[string]string{
+				"provider": string(s.config.Provider),
+				"type":     string(request.Type),
+			})
+		}
 		return nil, err
 	}
 
 	response.ProcessingTime = time.Since(startTime)
+	
+	if s.monitoring != nil {
+		s.monitoring.GetMetrics().RecordTimer("ai_request_duration_seconds", response.ProcessingTime, map[string]string{
+			"provider": string(s.config.Provider),
+			"type":     string(request.Type),
+		})
+		
+		// Record token usage if available
+		if response.TokensUsed > 0 {
+			s.monitoring.GetMetrics().SetGauge("ai_tokens_used_total", float64(response.TokensUsed), map[string]string{
+				"provider": string(s.config.Provider),
+				"type":     string(request.Type),
+			})
+		}
+	}
+	
 	return response, nil
 }
 

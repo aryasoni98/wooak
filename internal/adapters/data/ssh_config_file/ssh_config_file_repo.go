@@ -19,6 +19,7 @@ import (
 
 	"github.com/aryasoni98/wooak/internal/core/domain"
 	"github.com/aryasoni98/wooak/internal/core/ports"
+	"github.com/aryasoni98/wooak/internal/core/services/monitoring"
 	"github.com/kevinburke/ssh_config"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,7 @@ type Repository struct {
 	fileSystem      FileSystem
 	metadataManager *metadataManager
 	logger          *zap.SugaredLogger
+	monitoring      *monitoring.MonitoringService
 }
 
 // NewRepository creates a new SSH config repository.
@@ -38,6 +40,7 @@ func NewRepository(logger *zap.SugaredLogger, configPath, metaDataPath string) p
 		configPath:      configPath,
 		fileSystem:      DefaultFileSystem{},
 		metadataManager: newMetadataManager(metaDataPath, logger),
+		monitoring:      nil, // Will be set via SetMonitoring
 	}
 }
 
@@ -48,7 +51,13 @@ func NewRepositoryWithFS(logger *zap.SugaredLogger, configPath string, metaDataP
 		configPath:      configPath,
 		fileSystem:      fs,
 		metadataManager: newMetadataManager(metaDataPath, logger),
+		monitoring:      nil, // Will be set via SetMonitoring
 	}
+}
+
+// SetMonitoring sets the monitoring service for the repository
+func (r *Repository) SetMonitoring(mon *monitoring.MonitoringService) {
+	r.monitoring = mon
 }
 
 // ListServers returns all servers matching the query pattern.
