@@ -15,10 +15,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aryasoni98/wooak/internal/adapters/data/ssh_config_file"
 	"github.com/aryasoni98/wooak/internal/logger"
@@ -53,33 +55,52 @@ func main() {
 	monitoringService.Start()
 	defer monitoringService.Stop()
 
+	// Get metrics port from environment variable, default to 9091
+	metricsPort := os.Getenv("METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "9091" // Use 9091 to avoid conflict with Prometheus
+	}
+
 	// Start HTTP server for metrics endpoint
+	metricsServer := &http.Server{
+		Addr: ":" + metricsPort,
+	}
+
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		fmt.Fprint(w, monitoringService.GetMetrics().ToPrometheusFormat())
+	})
+
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		healthSummary := monitoringService.GetHealthMonitor().GetHealthSummary(ctx)
+		w.Header().Set("Content-Type", "application/json")
+
+		// Simple health status response
+		if healthSummary["overall_status"] == monitoring.Healthy {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+
+		fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`,
+			healthSummary["overall_status"],
+			healthSummary["last_checked"])
+	})
+
 	go func() {
-		http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-			fmt.Fprint(w, monitoringService.GetMetrics().ToPrometheusFormat())
-		})
+		log.Infow("Starting metrics server", "port", metricsPort)
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorw("Metrics server error", "error", err)
+		}
+	}()
 
-		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			healthSummary := monitoringService.GetHealthMonitor().GetHealthSummary(ctx)
-			w.Header().Set("Content-Type", "application/json")
-
-			// Simple health status response
-			if healthSummary["overall_status"] == monitoring.Healthy {
-				w.WriteHeader(http.StatusOK)
-			} else {
-				w.WriteHeader(http.StatusServiceUnavailable)
-			}
-
-			fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`,
-				healthSummary["overall_status"],
-				healthSummary["last_checked"])
-		})
-
-		log.Infow("Starting metrics server", "port", 9090)
-		if err := http.ListenAndServe(":9090", nil); err != nil {
-			log.Errorw("Metrics server failed", "error", err)
+	// Ensure graceful shutdown of metrics server
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			log.Errorw("Metrics server shutdown error", "error", err)
 		}
 	}()
 

@@ -46,18 +46,27 @@ type Metric struct {
 
 // MetricsCollector collects and manages performance metrics
 type MetricsCollector struct {
-	metrics map[string]*Metric
-	mutex   sync.RWMutex
-	started bool
-	stopCh  chan struct{}
+	metrics            map[string]*Metric
+	mutex              sync.RWMutex
+	started            bool
+	stopCh             chan struct{}
+	collectionInterval time.Duration
 }
 
 // NewMetricsCollector creates a new metrics collector
 func NewMetricsCollector() *MetricsCollector {
 	return &MetricsCollector{
-		metrics: make(map[string]*Metric),
-		stopCh:  make(chan struct{}),
+		metrics:            make(map[string]*Metric),
+		stopCh:             make(chan struct{}),
+		collectionInterval: 30 * time.Second, // Default to 30 seconds, aligned with typical Prometheus scrape interval
 	}
+}
+
+// SetCollectionInterval sets the interval for runtime metrics collection
+func (mc *MetricsCollector) SetCollectionInterval(interval time.Duration) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	mc.collectionInterval = interval
 }
 
 // Start starts the metrics collector
@@ -240,7 +249,11 @@ func (mc *MetricsCollector) getMetricKey(name string, labels map[string]string) 
 
 // collectSystemMetrics collects system-level metrics
 func (mc *MetricsCollector) collectSystemMetrics() {
-	ticker := time.NewTicker(30 * time.Second)
+	mc.mutex.RLock()
+	interval := mc.collectionInterval
+	mc.mutex.RUnlock()
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -307,21 +320,21 @@ func (mc *MetricsCollector) ToPrometheusFormat() string {
 			continue
 		}
 
-		// Write TYPE and HELP comments
-		metricType := metrics[0].Type
-		prometheusType := mc.getPrometheusType(metricType)
-		builder.WriteString(fmt.Sprintf("# TYPE %s %s\n", name, prometheusType))
+		// Write HELP and TYPE comments
 		if metrics[0].Description != "" {
 			builder.WriteString(fmt.Sprintf("# HELP %s %s\n", name, metrics[0].Description))
 		}
+		metricType := metrics[0].Type
+		prometheusType := mc.getPrometheusType(metricType)
+		builder.WriteString(fmt.Sprintf("# TYPE %s %s\n", name, prometheusType))
 
-		// Write metric values
+		// Write metric values without timestamps (Prometheus uses scrape time)
 		for _, metric := range metrics {
 			if len(metric.Labels) > 0 {
 				labelStr := mc.formatLabels(metric.Labels)
-				builder.WriteString(fmt.Sprintf("%s{%s} %g %d\n", name, labelStr, metric.Value, metric.Timestamp.UnixMilli()))
+				builder.WriteString(fmt.Sprintf("%s{%s} %g\n", name, labelStr, metric.Value))
 			} else {
-				builder.WriteString(fmt.Sprintf("%s %g %d\n", name, metric.Value, metric.Timestamp.UnixMilli()))
+				builder.WriteString(fmt.Sprintf("%s %g\n", name, metric.Value))
 			}
 		}
 
