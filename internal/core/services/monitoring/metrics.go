@@ -115,6 +115,26 @@ func (mc *MetricsCollector) IncrementCounter(name string, labels map[string]stri
 	}
 }
 
+// AddToCounter adds a custom value to a counter metric
+func (mc *MetricsCollector) AddToCounter(name string, value float64, labels map[string]string) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	key := mc.getMetricKey(name, labels)
+	if metric, exists := mc.metrics[key]; exists {
+		metric.Value += value
+		metric.Timestamp = time.Now()
+	} else {
+		mc.metrics[key] = &Metric{
+			Name:      name,
+			Type:      Counter,
+			Value:     value,
+			Labels:    labels,
+			Timestamp: time.Now(),
+		}
+	}
+}
+
 // SetGauge sets a gauge metric value
 func (mc *MetricsCollector) SetGauge(name string, value float64, labels map[string]string) {
 	mc.mutex.Lock()

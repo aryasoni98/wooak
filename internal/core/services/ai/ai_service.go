@@ -271,9 +271,9 @@ func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*
 			"type":     string(request.Type),
 		})
 
-		// Record token usage if available
+		// Record token usage if available (accumulated total)
 		if response.TokensUsed > 0 {
-			s.monitoring.GetMetrics().SetGauge("ai_tokens_used", float64(response.TokensUsed), map[string]string{
+			s.monitoring.GetMetrics().AddToCounter("ai_tokens_used_total", float64(response.TokensUsed), map[string]string{
 				"provider": string(s.config.Provider),
 				"type":     string(request.Type),
 			})
