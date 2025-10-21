@@ -135,6 +135,21 @@ func (mc *MetricsCollector) AddToCounter(name string, value float64, labels map[
 	}
 }
 
+// SetCounter sets a counter metric to an absolute value (for cumulative metrics)
+func (mc *MetricsCollector) SetCounter(name string, value float64, labels map[string]string) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	key := mc.getMetricKey(name, labels)
+	mc.metrics[key] = &Metric{
+		Name:      name,
+		Type:      Counter,
+		Value:     value,
+		Labels:    labels,
+		Timestamp: time.Now(),
+	}
+}
+
 // SetGauge sets a gauge metric value
 func (mc *MetricsCollector) SetGauge(name string, value float64, labels map[string]string) {
 	mc.mutex.Lock()
@@ -310,9 +325,9 @@ func (mc *MetricsCollector) collectRuntimeMetrics() {
 	mc.SetGauge("go_memory_heap_released_bytes", float64(m.HeapReleased), nil)
 	mc.SetGauge("go_memory_heap_objects", float64(m.HeapObjects), nil)
 
-	// GC metrics
-	mc.SetGauge("go_gc_cycles_total", float64(m.NumGC), nil)
-	mc.SetGauge("go_gc_pause_total_ns", float64(m.PauseTotalNs), nil)
+	// GC metrics - use counters for cumulative totals
+	mc.SetCounter("go_gc_cycles_total", float64(m.NumGC), nil)
+	mc.SetCounter("go_gc_pause_total_ns", float64(m.PauseTotalNs), nil)
 
 	// Goroutines
 	mc.SetGauge("go_goroutines", float64(runtime.NumGoroutine()), nil)
