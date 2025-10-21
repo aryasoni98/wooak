@@ -261,8 +261,16 @@ func (mc *MetricsCollector) GetStats() map[string]interface{} {
 // getMetricKey creates a unique key for a metric
 func (mc *MetricsCollector) getMetricKey(name string, labels map[string]string) string {
 	key := name
-	for k, v := range labels {
-		key += ":" + k + "=" + v
+	if len(labels) > 0 {
+		// Sort label keys for deterministic key generation
+		keys := make([]string, 0, len(labels))
+		for k := range labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			key += ":" + k + "=" + labels[k]
+		}
 	}
 	return key
 }
