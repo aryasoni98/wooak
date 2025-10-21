@@ -380,6 +380,17 @@ func (mc *MetricsCollector) getPrometheusType(metricType MetricType) string {
 	}
 }
 
+// escapePrometheusLabelValue escapes special characters in label values according to Prometheus format
+func escapePrometheusLabelValue(value string) string {
+	// Escape backslashes first to avoid double-escaping
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	// Escape double quotes
+	value = strings.ReplaceAll(value, "\"", "\\\"")
+	// Escape newlines
+	value = strings.ReplaceAll(value, "\n", "\\n")
+	return value
+}
+
 // formatLabels formats labels for Prometheus exposition format
 func (mc *MetricsCollector) formatLabels(labels map[string]string) string {
 	if len(labels) == 0 {
@@ -395,7 +406,7 @@ func (mc *MetricsCollector) formatLabels(labels map[string]string) string {
 
 	parts := make([]string, 0, len(labels))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=\"%s\"", k, labels[k]))
+		parts = append(parts, fmt.Sprintf("%s=\"%s\"", k, escapePrometheusLabelValue(labels[k])))
 	}
 
 	return strings.Join(parts, ",")
