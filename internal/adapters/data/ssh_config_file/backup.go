@@ -85,7 +85,8 @@ func (r *Repository) createBackup() error {
 		r.monitoring.GetMetrics().IncrementCounter("ssh_config_backup_total", map[string]string{
 			"status": "success",
 		})
-		r.monitoring.GetMetrics().SetGauge("ssh_config_backup_count", float64(len(backupFiles)), nil)
+		// Report the actual count after pruning (MaxBackups)
+		r.monitoring.GetMetrics().SetGauge("ssh_config_backup_count", float64(MaxBackups), nil)
 	}
 	return nil
 }
