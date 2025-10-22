@@ -266,3 +266,68 @@ func TestAICache_UpdateExistingKey(t *testing.T) {
 		t.Errorf("Expected cache size to remain 1, got %d", cache.Size())
 	}
 }
+
+// TestAICache_Stop tests the Stop method and goroutine cleanup
+func TestAICache_Stop(t *testing.T) {
+	cache := NewAICache(1 * time.Minute)
+
+	// Add some test data
+	cache.Set("key1", "value1")
+	cache.Set("key2", "value2")
+
+	// Verify data is there
+	if cache.Size() != 2 {
+		t.Errorf("Expected cache size to be 2, got %d", cache.Size())
+	}
+
+	// Stop the cache
+	cache.Stop()
+
+	// Verify cache is still accessible after stop
+	if cache.Size() != 2 {
+		t.Errorf("Expected cache size to remain 2 after stop, got %d", cache.Size())
+	}
+
+	// Test that we can still get values
+	value, exists := cache.Get("key1")
+	if !exists || value != "value1" {
+		t.Error("Expected to still be able to get values after stop")
+	}
+}
+
+// TestAICache_StopMultipleTimes tests that calling Stop multiple times is safe
+func TestAICache_StopMultipleTimes(t *testing.T) {
+	cache := NewAICache(1 * time.Minute)
+
+	// Add some data
+	cache.Set("key", "value")
+
+	// Stop multiple times - should not panic
+	cache.Stop()
+	cache.Stop()
+	cache.Stop()
+
+	// Verify cache is still functional
+	value, exists := cache.Get("key")
+	if !exists || value != "value" {
+		t.Error("Expected cache to still be functional after multiple stops")
+	}
+}
+
+// TestAICache_CleanupGoroutine tests that the cleanup goroutine properly exits
+func TestAICache_CleanupGoroutine(t *testing.T) {
+	cache := NewAICache(100 * time.Millisecond) // Short TTL for testing
+
+	// Add some data
+	cache.Set("key1", "value1")
+	cache.Set("key2", "value2")
+
+	// Wait for cleanup to potentially run
+	time.Sleep(200 * time.Millisecond)
+
+	// Stop the cache
+	cache.Stop()
+
+	// The test passes if Stop() returns without hanging
+	// This verifies that the cleanup goroutine properly exits
+}

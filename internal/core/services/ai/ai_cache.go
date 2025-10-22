@@ -27,16 +27,19 @@ type CacheEntry struct {
 
 // AICache provides caching functionality for AI responses
 type AICache struct {
-	entries map[string]*CacheEntry
-	mutex   sync.RWMutex
-	ttl     time.Duration
+	entries  map[string]*CacheEntry
+	mutex    sync.RWMutex
+	ttl      time.Duration
+	stopChan chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewAICache creates a new AI cache
 func NewAICache(ttl time.Duration) *AICache {
 	cache := &AICache{
-		entries: make(map[string]*CacheEntry),
-		ttl:     ttl,
+		entries:  make(map[string]*CacheEntry),
+		ttl:      ttl,
+		stopChan: make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -100,17 +103,37 @@ func (c *AICache) Size() int {
 
 // cleanup removes expired entries from the cache
 func (c *AICache) cleanup() {
+	c.wg.Add(1)
+	defer c.wg.Done()
+
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.mutex.Lock()
-		now := time.Now()
-		for key, entry := range c.entries {
-			if now.After(entry.ExpiresAt) {
-				delete(c.entries, key)
+	for {
+		select {
+		case <-ticker.C:
+			c.mutex.Lock()
+			now := time.Now()
+			for key, entry := range c.entries {
+				if now.After(entry.ExpiresAt) {
+					delete(c.entries, key)
+				}
 			}
+			c.mutex.Unlock()
+		case <-c.stopChan:
+			return // Proper exit when stopped
 		}
-		c.mutex.Unlock()
+	}
+}
+
+// Stop stops the cache cleanup goroutine
+func (c *AICache) Stop() {
+	select {
+	case <-c.stopChan:
+		// Already stopped
+		return
+	default:
+		close(c.stopChan)
+		c.wg.Wait() // Wait for cleanup to finish
 	}
 }

@@ -539,3 +539,9 @@ func (s *AIService) GetConnectionPoolStats() map[string]interface{} {
 func (s *AIService) CloseConnectionPool() {
 	s.pool.Close()
 }
+
+// Stop stops the AI service and cleans up resources
+func (s *AIService) Stop() {
+	s.cache.Stop()
+	s.pool.Close()
+}
