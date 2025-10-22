@@ -128,12 +128,19 @@ func (c *AICache) cleanup() {
 
 // Stop stops the cache cleanup goroutine
 func (c *AICache) Stop() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	select {
 	case <-c.stopChan:
 		// Already stopped
 		return
 	default:
 		close(c.stopChan)
-		c.wg.Wait() // Wait for cleanup to finish
 	}
+
+	// Wait for cleanup to finish outside the mutex
+	c.mutex.Unlock()
+	c.wg.Wait()
+	c.mutex.Lock()
 }

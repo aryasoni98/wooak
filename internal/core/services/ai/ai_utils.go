@@ -68,7 +68,7 @@ func IsOllamaRunning(baseURL string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/tags", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/tags", http.NoBody)
 	if err != nil {
 		return false
 	}
@@ -81,7 +81,11 @@ func IsOllamaRunning(baseURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the check
+		}
+	}()
 
 	return resp.StatusCode == http.StatusOK
 }
