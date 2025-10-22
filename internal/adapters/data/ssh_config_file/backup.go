@@ -26,9 +26,14 @@ import (
 
 // createBackup creates a timestamped backup of the current config file
 func (r *Repository) createBackup() error {
+	start := time.Now()
+
 	if _, err := r.fileSystem.Stat(r.configPath); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_backup", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to check if config file exists: %w", err)
 	}
 
@@ -36,6 +41,9 @@ func (r *Repository) createBackup() error {
 	backupPath := fmt.Sprintf("%s-%d-%s", r.configPath, timestamp, BackupSuffix)
 
 	if err := r.copyFile(r.configPath, backupPath); err != nil {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_backup", time.Since(start), false)
+		}
 		return fmt.Errorf("failed to copy config to backup: %w", err)
 	}
 
@@ -49,6 +57,13 @@ func (r *Repository) createBackup() error {
 	}
 
 	if len(backupFiles) <= MaxBackups {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_backup", time.Since(start), true)
+			r.monitoring.GetMetrics().IncrementCounter("ssh_config_backup_total", map[string]string{
+				"status": "success",
+			})
+			r.monitoring.GetMetrics().SetGauge("ssh_config_backup_count", float64(len(backupFiles)), nil)
+		}
 		return nil
 	}
 
@@ -63,6 +78,15 @@ func (r *Repository) createBackup() error {
 			continue
 		}
 		r.logger.Infof("Removed old backup: %s", backupPath)
+	}
+
+	if r.monitoring != nil {
+		r.monitoring.RecordOperation("ssh_config_backup", time.Since(start), true)
+		r.monitoring.GetMetrics().IncrementCounter("ssh_config_backup_total", map[string]string{
+			"status": "success",
+		})
+		// Report the actual count after pruning (MaxBackups)
+		r.monitoring.GetMetrics().SetGauge("ssh_config_backup_count", float64(MaxBackups), nil)
 	}
 	return nil
 }
