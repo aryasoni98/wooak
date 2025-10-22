@@ -124,7 +124,7 @@ type AIConfig struct {
 func DefaultAIConfig() *AIConfig {
 	return &AIConfig{
 		Provider:     ProviderOllama,
-		Model:        "gpt-oss:latest",
+		Model:        "llama3.2:3b",
 		BaseURL:      "http://localhost:11434",
 		MaxTokens:    512,
 		Temperature:  0.7,

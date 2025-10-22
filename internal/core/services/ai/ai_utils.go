@@ -15,31 +15,45 @@
 package ai
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"net/http"
 	"time"
 )
 
 // generateRequestID generates a unique request ID
 func generateRequestID() string {
 	now := time.Now().UnixNano()
-	randNum, _ := rand.Int(rand.Reader, big.NewInt(10000))
+	randNum, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		// Fallback to timestamp-based ID if crypto random fails
+		return fmt.Sprintf("req_%d_%d", now, now%10000)
+	}
 	return fmt.Sprintf("req_%d_%d", now, randNum.Int64())
 }
 
 // generateResponseID generates a unique response ID
 func generateResponseID() string {
 	now := time.Now().UnixNano()
-	randNum, _ := rand.Int(rand.Reader, big.NewInt(10000))
+	randNum, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		// Fallback to timestamp-based ID if crypto random fails
+		return fmt.Sprintf("resp_%d_%d", now, now%10000)
+	}
 	return fmt.Sprintf("resp_%d_%d", now, randNum.Int64())
 }
 
 // generateRecommendationID generates a unique recommendation ID
 func generateRecommendationID() string {
 	now := time.Now().UnixNano()
-	randNum, _ := rand.Int(rand.Reader, big.NewInt(10000))
+	randNum, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		// Fallback to timestamp-based ID if crypto random fails
+		return fmt.Sprintf("rec_%d_%d", now, now%10000)
+	}
 	return fmt.Sprintf("rec_%d_%d", now, randNum.Int64())
 }
 
@@ -51,10 +65,25 @@ func generateHash(data interface{}) string {
 
 // IsOllamaRunning checks if Ollama is running on the default port
 func IsOllamaRunning(baseURL string) bool {
-	// This would typically make a simple HTTP request to check if Ollama is running
-	// For now, we'll return true as a placeholder
-	// In a real implementation, you'd make a HEAD request to the base URL
-	return true
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/tags", nil)
+	if err != nil {
+		return false
+	}
+
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // GetAvailableModels returns a list of available AI models

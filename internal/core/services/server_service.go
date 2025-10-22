@@ -150,6 +150,16 @@ func (s *serverService) SetPinned(alias string, pinned bool) error {
 
 // SSH starts an interactive SSH session to the given alias using the system's ssh client.
 func (s *serverService) SSH(alias string) error {
+	// Validate alias format for security
+	if !isValidAlias(alias) {
+		return fmt.Errorf("invalid alias format: %s", alias)
+	}
+
+	// Additional security checks
+	if err := s.validateSSHAccess(alias); err != nil {
+		return fmt.Errorf("ssh access validation failed: %w", err)
+	}
+
 	s.logger.Infow("ssh start", "alias", alias)
 	cmd := exec.Command("ssh", alias)
 	cmd.Stdin = os.Stdin
@@ -235,4 +245,53 @@ func resolveSSHDestination(alias string) (string, int, bool) {
 		port = 22
 	}
 	return host, port, true
+}
+
+// isValidAlias validates that an alias is safe for SSH command execution
+func isValidAlias(alias string) bool {
+	// Check length
+	if len(alias) == 0 || len(alias) > 100 {
+		return false
+	}
+
+	// Check for dangerous characters
+	if strings.Contains(alias, "..") || strings.Contains(alias, "/") || strings.Contains(alias, "\\") {
+		return false
+	}
+
+	// Check for command injection attempts
+	dangerousChars := []string{";", "&", "|", "`", "$", "(", ")", "<", ">", "\"", "'", "\n", "\r", "\t"}
+	for _, char := range dangerousChars {
+		if strings.Contains(alias, char) {
+			return false
+		}
+	}
+
+	// Allow only alphanumeric, dots, dashes, underscores
+	matched, _ := regexp.MatchString(`^[A-Za-z0-9_.-]+$`, alias)
+	return matched
+}
+
+// validateSSHAccess performs additional security checks before SSH execution
+func (s *serverService) validateSSHAccess(alias string) error {
+	// Check if alias exists in repository
+	servers, err := s.serverRepository.ListServers("")
+	if err != nil {
+		return fmt.Errorf("failed to list servers for validation: %w", err)
+	}
+
+	// Verify alias exists in our known servers
+	aliasExists := false
+	for _, server := range servers {
+		if server.Alias == alias {
+			aliasExists = true
+			break
+		}
+	}
+
+	if !aliasExists {
+		return fmt.Errorf("alias '%s' not found in known servers", alias)
+	}
+
+	return nil
 }
