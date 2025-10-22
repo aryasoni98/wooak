@@ -250,7 +250,7 @@ func resolveSSHDestination(alias string) (string, int, bool) {
 // isValidAlias validates that an alias is safe for SSH command execution
 func isValidAlias(alias string) bool {
 	// Check length
-	if len(alias) == 0 || len(alias) > 100 {
+	if alias == "" || len(alias) > 100 {
 		return false
 	}
 
