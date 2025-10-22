@@ -64,6 +64,6 @@ jobs:
             skip-semantic-pr
             hacktoberfest
           ignoreTitlePattern: |
-            ^\[Hacktoberfest\]
+            ^\[Hacktoberfest\]:
           ignoreCommits: |
             ^(Merge|Revert)
