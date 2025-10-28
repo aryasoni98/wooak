@@ -6,7 +6,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v0.1.0-green?style=for-the-badge)](https://github.com/aryasoni98/wooak/releases)
+[![Release](https://img.shields.io/badge/Release-v0.0.2-green?style=for-the-badge)](https://github.com/aryasoni98/wooak/releases)
 [![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-Friendly-orange?style=for-the-badge)](https://hacktoberfest.com/participation/)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?style=for-the-badge)](CONTRIBUTING.md)
 
