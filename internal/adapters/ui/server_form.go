@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/aryasoni98/wooak/internal/core/domain"
-	"github.com/aryasoni98/wooak/internal/core/services"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -2182,11 +2181,12 @@ func (sf *ServerForm) dataToServer(data ServerFormData) domain.Server {
 		return result
 	}
 
-	server := services.GetServerFromPool()
-	server.Alias = data.Alias
-	server.Host = data.Host
-	server.User = data.User
-	server.Port = port
+	server := &domain.Server{
+		Alias: data.Alias,
+		Host:  data.Host,
+		User:  data.User,
+		Port:  port,
+	}
 	server.IdentityFiles = keys
 	server.Tags = tags
 	server.ProxyJump = data.ProxyJump

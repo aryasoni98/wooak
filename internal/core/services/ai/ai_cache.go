@@ -43,6 +43,7 @@ func NewAICache(ttl time.Duration) *AICache {
 	}
 
 	// Start cleanup goroutine
+	cache.wg.Add(1)
 	go cache.cleanup()
 
 	return cache
@@ -103,7 +104,6 @@ func (c *AICache) Size() int {
 
 // cleanup removes expired entries from the cache
 func (c *AICache) cleanup() {
-	c.wg.Add(1)
 	defer c.wg.Done()
 
 	ticker := time.NewTicker(5 * time.Minute)
@@ -128,19 +128,26 @@ func (c *AICache) cleanup() {
 
 // Stop stops the cache cleanup goroutine
 func (c *AICache) Stop() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+	// Check if already stopped without holding lock
 	select {
 	case <-c.stopChan:
 		// Already stopped
 		return
 	default:
-		close(c.stopChan)
 	}
 
-	// Wait for cleanup to finish outside the mutex
-	c.mutex.Unlock()
-	c.wg.Wait()
+	// Close stop channel while holding lock
 	c.mutex.Lock()
+	select {
+	case <-c.stopChan:
+		// Another goroutine already stopped it
+		c.mutex.Unlock()
+		return
+	default:
+		close(c.stopChan)
+	}
+	c.mutex.Unlock()
+
+	// Wait for cleanup goroutine to finish (no lock needed here)
+	c.wg.Wait()
 }

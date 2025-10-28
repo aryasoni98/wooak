@@ -22,8 +22,8 @@ import (
 type AIProvider string
 
 const (
-	ProviderOllama AIProvider = "ollama"
-	ProviderOpenAI AIProvider = "openai"
+	ProviderOllama AIProvider = "ollama" // Currently supported
+	ProviderOpenAI AIProvider = "openai" // Not yet implemented - placeholder for future
 )
 
 // AIModel represents an AI model configuration

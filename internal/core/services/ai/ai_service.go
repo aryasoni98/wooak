@@ -345,10 +345,12 @@ func (s *AIService) makeOllamaRequest(ctx context.Context, request *ai.AIRequest
 	}, nil
 }
 
-// makeOpenAIRequest makes a request to OpenAI (placeholder for future implementation)
+// makeOpenAIRequest makes a request to OpenAI
+// NOTE: OpenAI integration is not yet implemented. This is a placeholder for future functionality.
+// Currently, only Ollama provider is supported. To use AI features, please configure Ollama.
+// See: https://ollama.ai for installation instructions.
 func (s *AIService) makeOpenAIRequest(ctx context.Context, request *ai.AIRequest) (*ai.AIResponse, error) {
-	// TODO: Implement OpenAI integration
-	return nil, fmt.Errorf("OpenAI integration not yet implemented")
+	return nil, fmt.Errorf("OpenAI integration not yet implemented - please use Ollama provider instead")
 }
 
 // parseRecommendation parses AI response into a recommendation

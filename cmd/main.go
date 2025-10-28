@@ -63,12 +63,13 @@ func main() {
 
 	// Start HTTP server for metrics endpoint
 	metricsServer := &http.Server{
-		Addr: ":" + metricsPort,
+		Addr:              ":" + metricsPort,
+		ReadHeaderTimeout: 5 * time.Second, // Prevent Slowloris attacks
 	}
 
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		fmt.Fprint(w, monitoringService.GetMetrics().ToPrometheusFormat())
+		_, _ = fmt.Fprint(w, monitoringService.GetMetrics().ToPrometheusFormat())
 	})
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +84,7 @@ func main() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 
-		fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`,
+		_, _ = fmt.Fprintf(w, `{"status":"%v","timestamp":"%v"}`,
 			healthSummary["overall_status"],
 			healthSummary["last_checked"])
 	})

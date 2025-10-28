@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/aryasoni98/wooak/internal/core/domain"
-	"github.com/aryasoni98/wooak/internal/core/services"
 	"github.com/kevinburke/ssh_config"
 )
 
@@ -42,11 +41,12 @@ func (r *Repository) toDomainServer(cfg *ssh_config.Config) []domain.Server {
 		if len(aliases) == 0 {
 			continue
 		}
-		server := services.GetServerFromPool()
-		server.Alias = aliases[0]
-		server.Aliases = aliases
-		server.Port = 22
-		server.IdentityFiles = []string{}
+		server := &domain.Server{
+			Alias:         aliases[0],
+			Aliases:       aliases,
+			Port:          22,
+			IdentityFiles: []string{},
+		}
 
 		for _, node := range host.Nodes {
 			kvNode, ok := node.(*ssh_config.KV)

@@ -429,7 +429,7 @@ func (mc *MetricsCollector) formatLabels(labels map[string]string) string {
 
 	parts := make([]string, 0, len(labels))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=\"%s\"", k, escapePrometheusLabelValue(labels[k])))
+		parts = append(parts, fmt.Sprintf("%s=%q", k, escapePrometheusLabelValue(labels[k])))
 	}
 
 	return strings.Join(parts, ",")
