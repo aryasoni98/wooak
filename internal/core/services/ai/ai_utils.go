@@ -65,16 +65,16 @@ func generateHash(data interface{}) string {
 
 // IsOllamaRunning checks if Ollama is running on the default port
 func IsOllamaRunning(baseURL string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), OllamaConnectionTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/tags", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+OllamaHealthCheckURL, http.NoBody)
 	if err != nil {
 		return false
 	}
 
 	client := &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: OllamaConnectionTimeout,
 	}
 
 	resp, err := client.Do(req)

@@ -29,22 +29,23 @@ import (
 
 // AIService provides AI-powered functionality for Wooak
 type AIService struct {
-	config     *ai.AIConfig
-	httpClient *http.Client
-	cache      *AICache
-	pool       *ConnectionPool
-	monitoring *monitoring.MonitoringService
+	config      *ai.AIConfig
+	httpClient  *http.Client
+	cache       *AICache
+	pool        *ConnectionPool
+	monitoring  *monitoring.MonitoringService
+	retryConfig *RetryConfig
 }
 
 // NewAIService creates a new AI service
 func NewAIService(config *ai.AIConfig) *AIService {
 	// Create connection pool configuration
 	poolConfig := &PoolConfig{
-		MaxConnections:        5,
-		MaxIdleConns:          5,
-		MaxConnsPerHost:       3,
-		IdleConnTimeout:       90 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
+		MaxConnections:        DefaultMaxConnections,
+		MaxIdleConns:          DefaultMaxIdleConns,
+		MaxConnsPerHost:       DefaultMaxConnsPerHost,
+		IdleConnTimeout:       DefaultIdleConnTimeout,
+		ResponseHeaderTimeout: DefaultResponseTimeout,
 		RequestTimeout:        config.Timeout,
 	}
 
@@ -53,9 +54,10 @@ func NewAIService(config *ai.AIConfig) *AIService {
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
-		cache:      NewAICache(config.CacheTTL),
-		pool:       NewConnectionPool(poolConfig),
-		monitoring: nil, // Will be set via SetMonitoring
+		cache:       NewAICache(config.CacheTTL),
+		pool:        NewConnectionPool(poolConfig),
+		monitoring:  nil, // Will be set via SetMonitoring
+		retryConfig: DefaultRetryConfig(),
 	}
 }
 
@@ -231,36 +233,40 @@ func (s *AIService) AnalyzeSecurity(ctx context.Context, config map[string]strin
 	return recommendation, nil
 }
 
-// makeAIRequest makes a request to the AI provider
+// makeAIRequest makes a request to the AI provider with retry logic
 func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*ai.AIResponse, error) {
 	startTime := time.Now()
 
 	var response *ai.AIResponse
 	var err error
 
-	switch s.config.Provider {
-	case ai.ProviderOllama:
-		response, err = s.makeOllamaRequest(ctx, request)
-	case ai.ProviderOpenAI:
-		response, err = s.makeOpenAIRequest(ctx, request)
-	default:
-		if s.monitoring != nil {
-			s.monitoring.GetMetrics().IncrementCounter("ai_request_error_total", map[string]string{
-				"provider": string(s.config.Provider),
-				"reason":   "unsupported_provider",
-			})
+	// Wrap the AI request in retry logic
+	retryErr := RetryWithBackoff(ctx, s.retryConfig, func() error {
+		switch s.config.Provider {
+		case ai.ProviderOllama:
+			response, err = s.makeOllamaRequest(ctx, request)
+		case ai.ProviderOpenAI:
+			response, err = s.makeOpenAIRequest(ctx, request)
+		default:
+			if s.monitoring != nil {
+				s.monitoring.GetMetrics().IncrementCounter("ai_request_error_total", map[string]string{
+					"provider": string(s.config.Provider),
+					"reason":   "unsupported_provider",
+				})
+			}
+			return fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
 		}
-		return nil, fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
-	}
+		return err
+	})
 
-	if err != nil {
+	if retryErr != nil {
 		if s.monitoring != nil {
 			s.monitoring.GetMetrics().IncrementCounter("ai_request_error_total", map[string]string{
 				"provider": string(s.config.Provider),
 				"type":     string(request.Type),
 			})
 		}
-		return nil, err
+		return nil, fmt.Errorf("AI request failed after retries: %w", retryErr)
 	}
 
 	response.ProcessingTime = time.Since(startTime)
@@ -542,8 +548,31 @@ func (s *AIService) CloseConnectionPool() {
 	s.pool.Close()
 }
 
-// Stop stops the AI service and cleans up resources
+// Stop stops the AI service and cleans up resources with graceful shutdown
 func (s *AIService) Stop() {
-	s.cache.Stop()
-	s.pool.Close()
+	// Create a context with timeout for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Create a channel to signal when cleanup is done
+	done := make(chan struct{})
+
+	go func() {
+		// Stop cache cleanup goroutines
+		s.cache.Stop()
+
+		// Close connection pool
+		s.pool.Close()
+
+		close(done)
+	}()
+
+	// Wait for cleanup to complete or timeout
+	select {
+	case <-done:
+		// Cleanup completed successfully
+	case <-ctx.Done():
+		// Timeout occurred, log but don't fail
+		fmt.Printf("Warning: AI service shutdown timed out after 10 seconds\n")
+	}
 }

@@ -106,7 +106,7 @@ func (c *AICache) Size() int {
 func (c *AICache) cleanup() {
 	defer c.wg.Done()
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(DefaultCacheCleanupInterval)
 	defer ticker.Stop()
 
 	for {

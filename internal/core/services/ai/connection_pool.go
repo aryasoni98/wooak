@@ -43,11 +43,11 @@ type PoolConfig struct {
 // DefaultPoolConfig returns a default configuration for the connection pool
 func DefaultPoolConfig() *PoolConfig {
 	return &PoolConfig{
-		MaxConnections:        10,
-		MaxIdleConns:          10,
-		MaxConnsPerHost:       5,
-		IdleConnTimeout:       90 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
+		MaxConnections:        DefaultMaxConnections * 2, // 10
+		MaxIdleConns:          DefaultMaxIdleConns * 2,   // 10
+		MaxConnsPerHost:       DefaultMaxConnsPerHost,
+		IdleConnTimeout:       DefaultIdleConnTimeout,
+		ResponseHeaderTimeout: DefaultResponseTimeout,
 		RequestTimeout:        30 * time.Second,
 	}
 }
@@ -74,10 +74,10 @@ func NewConnectionPool(config *PoolConfig) *ConnectionPool {
 				DisableKeepAlives:     false,
 				DisableCompression:    false,
 				DialContext: (&net.Dialer{
-					Timeout:   5 * time.Second,
-					KeepAlive: 30 * time.Second,
+					Timeout:   DefaultDialTimeout,
+					KeepAlive: DefaultKeepAliveTimeout,
 				}).DialContext,
-				TLSHandshakeTimeout: 5 * time.Second,
+				TLSHandshakeTimeout: DefaultTLSHandshakeTimeout,
 			},
 			Timeout: config.RequestTimeout,
 		}
