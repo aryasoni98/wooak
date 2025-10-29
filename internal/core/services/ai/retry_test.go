@@ -98,7 +98,6 @@ func TestRetryWithBackoff_Success(t *testing.T) {
 		}
 		return nil // Success on second attempt
 	})
-
 	if err != nil {
 		t.Errorf("Expected success after retry, got error: %v", err)
 	}
@@ -225,7 +224,6 @@ func TestRetryWithBackoff_NilConfig(t *testing.T) {
 		}
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("Expected success with default config, got error: %v", err)
 	}

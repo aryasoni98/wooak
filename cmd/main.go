@@ -137,12 +137,14 @@ func main() {
 	tui := ui.NewTUI(log, serverService, securitySvc, aiSvc, version, gitCommit)
 
 	rootCmd := &cobra.Command{
-		Use:   ui.AppName,
-		Short: "Wooak SSH server picker TUI",
+		Use:     ui.AppName,
+		Short:   "Wooak SSH server picker TUI",
+		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return tui.Run()
 		},
 	}
+	rootCmd.SetVersionTemplate(fmt.Sprintf("Wooak version %s (commit: %s)\n", version, gitCommit))
 	rootCmd.SilenceUsage = true
 
 	if err := rootCmd.Execute(); err != nil {

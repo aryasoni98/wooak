@@ -82,9 +82,7 @@ func IsOllamaRunning(baseURL string) bool {
 		return false
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log error but don't fail the check
-		}
+		_ = resp.Body.Close()
 	}()
 
 	return resp.StatusCode == http.StatusOK

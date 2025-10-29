@@ -78,7 +78,7 @@ func IsRetryable(err error) bool {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+	return len(s) >= len(substr) && (s == substr || substr == "" ||
 		len(s) >= len(substr) && (s[:len(substr)] == substr ||
 			s[len(s)-len(substr):] == substr ||
 			indexOf(s, substr) >= 0))
@@ -103,10 +103,10 @@ func RetryWithBackoff(ctx context.Context, config *RetryConfig, fn func() error)
 	backoff := config.InitialBackoff
 
 	for attempt := 0; attempt <= config.MaxRetries; attempt++ {
-		// Check if context is cancelled
+		// Check if context is canceled
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("retry cancelled: %w", ctx.Err())
+			return fmt.Errorf("retry canceled: %w", ctx.Err())
 		default:
 		}
 
@@ -139,7 +139,7 @@ func RetryWithBackoff(ctx context.Context, config *RetryConfig, fn func() error)
 		case <-time.After(sleepDuration):
 			// Continue to next attempt
 		case <-ctx.Done():
-			return fmt.Errorf("retry cancelled during backoff: %w", ctx.Err())
+			return fmt.Errorf("retry canceled during backoff: %w", ctx.Err())
 		}
 
 		// Increase backoff for next attempt
