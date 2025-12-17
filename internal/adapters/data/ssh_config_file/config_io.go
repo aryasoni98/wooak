@@ -25,16 +25,37 @@ import (
 
 // loadConfig reads and parses the SSH config file.
 // If the file does not exist, it returns an empty config without error to support first-run behavior.
+// Uses in-memory cache to avoid redundant file I/O operations.
 func (r *Repository) loadConfig() (*ssh_config.Config, error) {
 	start := time.Now()
+
+	// Try to get from cache first
+	if cached, valid := r.cache.get(r.fileSystem, r.configPath); valid {
+		if r.monitoring != nil {
+			r.monitoring.RecordOperation("ssh_config_load", time.Since(start), true)
+			r.monitoring.RecordCacheHit("ssh_config")
+			r.monitoring.GetMetrics().IncrementCounter("ssh_config_load_total", map[string]string{
+				"status": "success",
+				"source": "cache",
+			})
+		}
+		return cached, nil
+	}
+
+	if r.monitoring != nil {
+		r.monitoring.RecordCacheMiss("ssh_config")
+	}
 
 	file, err := r.fileSystem.Open(r.configPath)
 	if err != nil {
 		if r.fileSystem.IsNotExist(err) {
+			emptyConfig := &ssh_config.Config{Hosts: []*ssh_config.Host{}}
+			// Cache empty config for non-existent file
+			r.cache.set(r.fileSystem, r.configPath, emptyConfig)
 			if r.monitoring != nil {
 				r.monitoring.RecordOperation("ssh_config_load", time.Since(start), true)
 			}
-			return &ssh_config.Config{Hosts: []*ssh_config.Host{}}, nil
+			return emptyConfig, nil
 		}
 		if r.monitoring != nil {
 			r.monitoring.RecordOperation("ssh_config_load", time.Since(start), false)
@@ -64,10 +85,14 @@ func (r *Repository) loadConfig() (*ssh_config.Config, error) {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
 
+	// Cache the loaded config
+	r.cache.set(r.fileSystem, r.configPath, cfg)
+
 	if r.monitoring != nil {
 		r.monitoring.RecordOperation("ssh_config_load", time.Since(start), true)
 		r.monitoring.GetMetrics().IncrementCounter("ssh_config_load_total", map[string]string{
 			"status": "success",
+			"source": "file",
 		})
 	}
 
@@ -130,6 +155,9 @@ func (r *Repository) saveConfig(cfg *ssh_config.Config) error {
 		}
 		return fmt.Errorf("failed to atomically replace config file: %w", err)
 	}
+
+	// Invalidate cache after successful save
+	r.cache.invalidate()
 
 	if r.monitoring != nil {
 		r.monitoring.RecordOperation("ssh_config_save", time.Since(start), true)

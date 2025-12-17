@@ -31,6 +31,7 @@ type Repository struct {
 	metadataManager *metadataManager
 	logger          *zap.SugaredLogger
 	monitoring      *monitoring.MonitoringService
+	cache           *configCache
 }
 
 // NewRepository creates a new SSH config repository.
@@ -41,6 +42,7 @@ func NewRepository(logger *zap.SugaredLogger, configPath, metaDataPath string) p
 		fileSystem:      DefaultFileSystem{},
 		metadataManager: newMetadataManager(metaDataPath, logger),
 		monitoring:      nil, // Will be set via SetMonitoring
+		cache:           newConfigCache(),
 	}
 }
 
@@ -52,6 +54,7 @@ func NewRepositoryWithFS(logger *zap.SugaredLogger, configPath string, metaDataP
 		fileSystem:      fs,
 		metadataManager: newMetadataManager(metaDataPath, logger),
 		monitoring:      nil, // Will be set via SetMonitoring
+		cache:           newConfigCache(),
 	}
 }
 
@@ -65,7 +68,7 @@ func (r *Repository) SetMonitoring(mon *monitoring.MonitoringService) {
 func (r *Repository) ListServers(query string) ([]domain.Server, error) {
 	cfg, err := r.loadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("failed to load SSH config file (operation: list servers, query: %q, path: %s): %w", query, r.configPath, err)
 	}
 
 	servers := r.toDomainServer(cfg)
@@ -86,11 +89,11 @@ func (r *Repository) ListServers(query string) ([]domain.Server, error) {
 func (r *Repository) AddServer(server domain.Server) error {
 	cfg, err := r.loadConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return fmt.Errorf("failed to load SSH config file (operation: add server, alias: %q, path: %s): %w", server.Alias, r.configPath, err)
 	}
 
 	if r.serverExists(cfg, server.Alias) {
-		return fmt.Errorf("server with alias '%s' already exists", server.Alias)
+		return fmt.Errorf("server with alias '%s' already exists in SSH config (path: %s)", server.Alias, r.configPath)
 	}
 
 	host := r.createHostFromServer(server)
@@ -98,7 +101,7 @@ func (r *Repository) AddServer(server domain.Server) error {
 
 	if err := r.saveConfig(cfg); err != nil {
 		r.logger.Warnf("Failed to save config while adding new server: %v", err)
-		return fmt.Errorf("failed to save config: %w", err)
+		return fmt.Errorf("failed to save SSH config file (operation: add server, alias: %q, path: %s): %w", server.Alias, r.configPath, err)
 	}
 	return r.metadataManager.updateServer(server, server.Alias)
 }
@@ -107,17 +110,17 @@ func (r *Repository) AddServer(server domain.Server) error {
 func (r *Repository) UpdateServer(server domain.Server, newServer domain.Server) error {
 	cfg, err := r.loadConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return fmt.Errorf("failed to load SSH config file (operation: update server, alias: %q -> %q, path: %s): %w", server.Alias, newServer.Alias, r.configPath, err)
 	}
 
 	host := r.findHostByAlias(cfg, server.Alias)
 	if host == nil {
-		return fmt.Errorf("server with alias '%s' not found", server.Alias)
+		return fmt.Errorf("server with alias '%s' not found in SSH config (path: %s)", server.Alias, r.configPath)
 	}
 
 	if server.Alias != newServer.Alias {
 		if r.serverExists(cfg, newServer.Alias) {
-			return fmt.Errorf("server with alias '%s' already exists", newServer.Alias)
+			return fmt.Errorf("server with alias '%s' already exists in SSH config (path: %s, cannot rename from '%s')", newServer.Alias, r.configPath, server.Alias)
 		}
 
 		newPatterns := make([]*ssh_config.Pattern, 0, len(host.Patterns))
@@ -143,7 +146,7 @@ func (r *Repository) UpdateServer(server domain.Server, newServer domain.Server)
 
 	if err := r.saveConfig(cfg); err != nil {
 		r.logger.Warnf("Failed to save config while updating server: %v", err)
-		return fmt.Errorf("failed to save config: %w", err)
+		return fmt.Errorf("failed to save SSH config file (operation: update server, alias: %q -> %q, path: %s): %w", server.Alias, newServer.Alias, r.configPath, err)
 	}
 	// Update metadata; pass old alias to allow inline migration
 	return r.metadataManager.updateServer(newServer, server.Alias)
@@ -153,19 +156,19 @@ func (r *Repository) UpdateServer(server domain.Server, newServer domain.Server)
 func (r *Repository) DeleteServer(server domain.Server) error {
 	cfg, err := r.loadConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return fmt.Errorf("failed to load SSH config file (operation: delete server, alias: %q, path: %s): %w", server.Alias, r.configPath, err)
 	}
 
 	initialCount := len(cfg.Hosts)
 	cfg.Hosts = r.removeHostByAlias(cfg.Hosts, server.Alias)
 
 	if len(cfg.Hosts) == initialCount {
-		return fmt.Errorf("server with alias '%s' not found", server.Alias)
+		return fmt.Errorf("server with alias '%s' not found in SSH config (path: %s)", server.Alias, r.configPath)
 	}
 
 	if err := r.saveConfig(cfg); err != nil {
 		r.logger.Warnf("Failed to save config while deleting server: %v", err)
-		return fmt.Errorf("failed to save config: %w", err)
+		return fmt.Errorf("failed to save SSH config file (operation: delete server, alias: %q, path: %s): %w", server.Alias, r.configPath, err)
 	}
 	return r.metadataManager.deleteServer(server.Alias)
 }

@@ -93,7 +93,31 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
-// RetryWithBackoff executes a function with exponential backoff retry logic
+// RetryWithBackoff executes a function with exponential backoff retry logic.
+//
+// This implements a robust retry strategy for transient failures:
+//   - Exponential backoff: wait time doubles after each failed attempt
+//   - Configurable retries: MaxRetries controls total attempts (initial + retries)
+//   - Context-aware: respects context cancellation for graceful shutdown
+//   - Retryable error detection: only retries on transient errors (network, timeouts)
+//
+// Algorithm:
+//  1. Execute function
+//  2. If success, return immediately
+//  3. If non-retryable error, return immediately
+//  4. If retryable error and attempts remaining:
+//     - Calculate backoff: min(InitialBackoff * (2^attempt), MaxBackoff)
+//     - Wait for backoff duration (respecting context)
+//     - Retry
+//  5. If all attempts exhausted, return RetryableError
+//
+// Example with defaults (InitialBackoff=500ms, MaxBackoff=10s, MaxRetries=3):
+//
+//	Attempt 1: immediate
+//	Attempt 2: wait 500ms
+//	Attempt 3: wait 1s
+//	Attempt 4: wait 2s
+//	Total: ~3.5s maximum
 func RetryWithBackoff(ctx context.Context, config *RetryConfig, fn func() error) error {
 	if config == nil {
 		config = DefaultRetryConfig()

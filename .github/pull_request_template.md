@@ -10,8 +10,6 @@
 > - `docs: update installation guide`
 > - `chore: update dependencies`
 > - `upgrade: bump Go version to 1.21`
-> 
-> For Hacktoberfest PRs, use: `[Hacktoberfest]: feat: add new feature`
 
 ## 🔗 Related Issues
 
@@ -30,7 +28,6 @@
 - [ ] ⚡ Performance improvements
 - [ ] 🧪 Adding tests
 - [ ] 🔧 Configuration changes
-- [ ] 🎃 Hacktoberfest contribution
 
 ## 🧪 Testing
 
@@ -73,12 +70,6 @@ make test
 - [ ] I have updated the CONTRIBUTING.md if necessary
 - [ ] I have added/updated code comments where necessary
 - [ ] I have updated any relevant documentation
-
-### Hacktoberfest (if applicable)
-- [ ] This is a meaningful contribution that adds value to the project
-- [ ] I have followed the project's contribution guidelines
-- [ ] I have read and agree to the Code of Conduct
-- [ ] This contribution is not spam or low-quality
 
 ## 🚀 Deployment Notes
 

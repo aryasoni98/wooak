@@ -286,7 +286,7 @@ func TestServerService_SSH_Validation(t *testing.T) {
 				{Alias: "server1", Host: "192.168.1.1"},
 			},
 			expectError: true,
-			errorMsg:    "ssh access validation failed",
+			errorMsg:    "alias not found in known servers list", // Updated to match new error format
 		},
 		{
 			name:        "empty alias",

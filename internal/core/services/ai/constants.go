@@ -19,6 +19,8 @@ import "time"
 const (
 	// Cache configuration
 	DefaultCacheCleanupInterval = 5 * time.Minute
+	DefaultCacheTTL             = 1 * time.Hour // Default TTL for cache entries
+	DefaultCacheMaxSize         = 1000          // Default maximum number of cache entries
 
 	// Connection pool configuration
 	DefaultMaxConnections      = 5
@@ -33,4 +35,17 @@ const (
 	// Ollama service configuration
 	OllamaConnectionTimeout = 2 * time.Second
 	OllamaHealthCheckURL    = "/api/tags"
+
+	// Service shutdown configuration
+	DefaultShutdownTimeout = 10 * time.Second
+
+	// Rate limiting configuration
+	DefaultRateLimitMaxTokens  = 10.0  // Maximum tokens in bucket
+	DefaultRateLimitRefillRate = 2.0   // Tokens per second
+	DefaultRateLimitBlock      = false // Don't block, just reject
+
+	// OpenAI API configuration
+	OpenAIBaseURL      = "https://api.openai.com/v1"
+	OpenAIEndpoint     = "/chat/completions"
+	OpenAIDefaultModel = "gpt-3.5-turbo"
 )

@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/aryasoni98/wooak/internal/core/domain/ai"
 	"github.com/aryasoni98/wooak/internal/core/services/monitoring"
+	"go.uber.org/zap"
 )
 
 // AIService provides AI-powered functionality for Wooak
@@ -35,10 +37,17 @@ type AIService struct {
 	pool        *ConnectionPool
 	monitoring  *monitoring.MonitoringService
 	retryConfig *RetryConfig
+	logger      *zap.SugaredLogger
+	rateLimiter *RateLimiter
 }
 
 // NewAIService creates a new AI service
 func NewAIService(config *ai.AIConfig) *AIService {
+	return NewAIServiceWithLogger(config, nil)
+}
+
+// NewAIServiceWithLogger creates a new AI service with a logger instance
+func NewAIServiceWithLogger(config *ai.AIConfig, logger *zap.SugaredLogger) *AIService {
 	// Create connection pool configuration
 	poolConfig := &PoolConfig{
 		MaxConnections:        DefaultMaxConnections,
@@ -49,6 +58,13 @@ func NewAIService(config *ai.AIConfig) *AIService {
 		RequestTimeout:        config.Timeout,
 	}
 
+	// Create rate limiter with default configuration
+	rateLimiter := NewRateLimiter(RateLimiterConfig{
+		MaxTokens:      DefaultRateLimitMaxTokens,
+		RefillRate:     DefaultRateLimitRefillRate,
+		BlockOnExhaust: DefaultRateLimitBlock,
+	})
+
 	return &AIService{
 		config: config,
 		httpClient: &http.Client{
@@ -58,6 +74,8 @@ func NewAIService(config *ai.AIConfig) *AIService {
 		pool:        NewConnectionPool(poolConfig),
 		monitoring:  nil, // Will be set via SetMonitoring
 		retryConfig: DefaultRetryConfig(),
+		logger:      logger,
+		rateLimiter: rateLimiter,
 	}
 }
 
@@ -237,6 +255,20 @@ func (s *AIService) AnalyzeSecurity(ctx context.Context, config map[string]strin
 func (s *AIService) makeAIRequest(ctx context.Context, request *ai.AIRequest) (*ai.AIResponse, error) {
 	startTime := time.Now()
 
+	// Check rate limit before making request
+	if !s.rateLimiter.Allow() {
+		if s.monitoring != nil {
+			s.monitoring.GetMetrics().IncrementCounter("ai_rate_limit_exceeded_total", map[string]string{
+				"provider": string(s.config.Provider),
+				"type":     string(request.Type),
+			})
+		}
+		if s.logger != nil {
+			s.logger.Warnw("AI request rate limited", "provider", s.config.Provider, "type", request.Type)
+		}
+		return nil, fmt.Errorf("rate limit exceeded for AI provider %s", s.config.Provider)
+	}
+
 	var response *ai.AIResponse
 	var err error
 
@@ -305,12 +337,12 @@ func (s *AIService) makeOllamaRequest(ctx context.Context, request *ai.AIRequest
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal Ollama request (request_id: %s, model: %s): %w", request.ID, request.Model, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request (request_id: %s, url: %s): %w", request.ID, url, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -319,17 +351,21 @@ func (s *AIService) makeOllamaRequest(ctx context.Context, request *ai.AIRequest
 	client := s.pool.GetClient()
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		return nil, fmt.Errorf("failed to make Ollama HTTP request (request_id: %s, url: %s): %w", request.ID, url, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			// Log error but don't fail the request
-			fmt.Printf("Warning: Failed to close response body: %v\n", closeErr)
+			if s.logger != nil {
+				s.logger.Warnw("Failed to close response body", "error", closeErr, "request_id", request.ID)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Warning: Failed to close response body: %v\n", closeErr)
+			}
 		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("AI request failed with status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Ollama API request failed (request_id: %s, status_code: %d, url: %s)", request.ID, resp.StatusCode, url)
 	}
 
 	var ollamaResponse struct {
@@ -338,7 +374,7 @@ func (s *AIService) makeOllamaRequest(ctx context.Context, request *ai.AIRequest
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&ollamaResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("failed to decode Ollama response (request_id: %s, status_code: %d): %w", request.ID, resp.StatusCode, err)
 	}
 
 	return &ai.AIResponse{
@@ -351,12 +387,131 @@ func (s *AIService) makeOllamaRequest(ctx context.Context, request *ai.AIRequest
 	}, nil
 }
 
-// makeOpenAIRequest makes a request to OpenAI
-// NOTE: OpenAI integration is not yet implemented. This is a placeholder for future functionality.
-// Currently, only Ollama provider is supported. To use AI features, please configure Ollama.
-// See: https://ollama.ai for installation instructions.
+// makeOpenAIRequest makes a request to OpenAI Chat Completions API
 func (s *AIService) makeOpenAIRequest(ctx context.Context, request *ai.AIRequest) (*ai.AIResponse, error) {
-	return nil, fmt.Errorf("OpenAI integration not yet implemented - please use Ollama provider instead")
+	// Validate API key is configured
+	if s.config.APIKey == "" {
+		return nil, fmt.Errorf("OpenAI API key not configured (request_id: %s). Please set APIKey in AIConfig", request.ID)
+	}
+
+	// Determine base URL - use config if set, otherwise default
+	baseURL := s.config.BaseURL
+	if baseURL == "" {
+		baseURL = OpenAIBaseURL
+	}
+	url := fmt.Sprintf("%s%s", baseURL, OpenAIEndpoint)
+
+	// Determine model - use request model if set, otherwise config model, otherwise default
+	model := request.Model
+	if model == "" {
+		model = s.config.Model
+	}
+	if model == "" {
+		model = OpenAIDefaultModel
+	}
+
+	// Build OpenAI Chat Completions request payload
+	payload := map[string]interface{}{
+		"model": model,
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": request.Prompt,
+			},
+		},
+		"max_tokens":  request.MaxTokens,
+		"temperature": request.Temperature,
+		"stream":      false,
+	}
+
+	// Use max_tokens from config if request doesn't specify
+	if request.MaxTokens == 0 {
+		payload["max_tokens"] = s.config.MaxTokens
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal OpenAI request (request_id: %s, model: %s): %w", request.ID, model, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request (request_id: %s, url: %s): %w", request.ID, url, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.config.APIKey))
+
+	// Use connection pool for better performance
+	client := s.pool.GetClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make OpenAI HTTP request (request_id: %s, url: %s): %w", request.ID, url, err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the request
+			if s.logger != nil {
+				s.logger.Warnw("Failed to close response body", "error", closeErr, "request_id", request.ID)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Warning: Failed to close response body: %v\n", closeErr)
+			}
+		}
+	}()
+
+	// Handle non-200 status codes
+	if resp.StatusCode != http.StatusOK {
+		// Try to read error response body for better error messages
+		var errorResponse map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&errorResponse)
+		if s.logger != nil {
+			s.logger.Errorw("OpenAI API request failed", "request_id", request.ID, "status_code", resp.StatusCode, "url", url, "response_body", errorResponse)
+		}
+		return nil, fmt.Errorf("OpenAI API request failed (request_id: %s, status_code: %d, url: %s)", request.ID, resp.StatusCode, url)
+	}
+
+	// Parse OpenAI response
+	var openAIResponse struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Created int64  `json:"created"`
+		Model   string `json:"model"`
+		Choices []struct {
+			Index   int `json:"index"`
+			Message struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&openAIResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode OpenAI response (request_id: %s, status_code: %d): %w", request.ID, resp.StatusCode, err)
+	}
+
+	// Extract content from first choice
+	if len(openAIResponse.Choices) == 0 {
+		return nil, fmt.Errorf("OpenAI API returned no choices (request_id: %s)", request.ID)
+	}
+
+	content := openAIResponse.Choices[0].Message.Content
+	tokensUsed := openAIResponse.Usage.TotalTokens
+
+	return &ai.AIResponse{
+		ID:         generateResponseID(),
+		RequestID:  request.ID,
+		Content:    content,
+		Type:       request.Type,
+		Model:      openAIResponse.Model,
+		TokensUsed: tokensUsed,
+		Timestamp:  time.Now(),
+	}, nil
 }
 
 // parseRecommendation parses AI response into a recommendation
@@ -551,7 +706,7 @@ func (s *AIService) CloseConnectionPool() {
 // Stop stops the AI service and cleans up resources with graceful shutdown
 func (s *AIService) Stop() {
 	// Create a context with timeout for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
 	defer cancel()
 
 	// Create a channel to signal when cleanup is done
@@ -573,6 +728,10 @@ func (s *AIService) Stop() {
 		// Cleanup completed successfully
 	case <-ctx.Done():
 		// Timeout occurred, log but don't fail
-		fmt.Printf("Warning: AI service shutdown timed out after 10 seconds\n")
+		if s.logger != nil {
+			s.logger.Warnw("AI service shutdown timed out", "timeout", DefaultShutdownTimeout)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: AI service shutdown timed out after %v\n", DefaultShutdownTimeout)
+		}
 	}
 }

@@ -101,9 +101,9 @@ For answers to common questions about this code of conduct, see the FAQ at [http
 
 ## Wooak-Specific Guidelines
 
-### Hacktoberfest Participation
+### Contribution Expectations
 
-During Hacktoberfest, we expect all participants to:
+We expect all contributors to:
 
 * **Focus on Quality**: Submit meaningful contributions that add value
 * **Be Patient**: Maintainers may take time to review contributions

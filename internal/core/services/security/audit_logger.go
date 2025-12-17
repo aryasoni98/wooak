@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/aryasoni98/wooak/internal/core/domain/security"
+	"go.uber.org/zap"
 )
 
 // AuditLogger handles security event logging
@@ -39,17 +40,28 @@ type AuditLogger struct {
 	mutex      sync.RWMutex
 	startOnce  sync.Once
 	stopOnce   sync.Once
+	logger     *zap.SugaredLogger
 }
 
 // NewAuditLogger creates a new audit logger
 func NewAuditLogger(policy *security.SecurityPolicy) *AuditLogger {
+	return NewAuditLoggerWithLogger(policy, nil)
+}
+
+// NewAuditLoggerWithLogger creates a new audit logger with a logger instance
+func NewAuditLoggerWithLogger(policy *security.SecurityPolicy, logger *zap.SugaredLogger) *AuditLogger {
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, ".wooak", "logs")
 
 	// Create log directory if it doesn't exist
-	if err := os.MkdirAll(logDir, 0o750); err != nil {
+	if err := os.MkdirAll(logDir, LogDirectoryPermissions); err != nil {
 		// Log error but continue - this is not critical
-		fmt.Printf("Warning: Failed to create log directory: %v\n", err)
+		if logger != nil {
+			logger.Warnw("Failed to create log directory", "error", err, "directory", logDir)
+		} else {
+			// Fallback to stderr if no logger provided
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: Failed to create log directory: %v\n", err)
+		}
 	}
 
 	logPath := filepath.Join(logDir, "security-audit.log")
@@ -58,10 +70,11 @@ func NewAuditLogger(policy *security.SecurityPolicy) *AuditLogger {
 	return &AuditLogger{
 		policy:     policy,
 		logPath:    logPath,
-		eventQueue: make(chan *security.SecurityEvent, 1000), // Buffer for 1000 events
+		eventQueue: make(chan *security.SecurityEvent, DefaultAuditLogQueueSize),
 		ctx:        ctx,
 		cancel:     cancel,
 		started:    false,
+		logger:     logger,
 	}
 }
 
@@ -103,7 +116,11 @@ func (al *AuditLogger) LogEvent(event *security.SecurityEvent) {
 	// Convert to JSON
 	jsonData, err := json.Marshal(logEntry)
 	if err != nil {
-		fmt.Printf("Failed to marshal audit log entry: %v\n", err)
+		if al.logger != nil {
+			al.logger.Errorw("Failed to marshal audit log entry", "error", err, "event_id", event.ID)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to marshal audit log entry: %v\n", err)
+		}
 		return
 	}
 
@@ -113,20 +130,32 @@ func (al *AuditLogger) LogEvent(event *security.SecurityEvent) {
 
 // writeToLogFile writes a log entry to the audit log file
 func (al *AuditLogger) writeToLogFile(entry string) {
-	file, err := os.OpenFile(al.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(al.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, LogFilePermissions)
 	if err != nil {
-		fmt.Printf("Failed to open audit log file: %v\n", err)
+		if al.logger != nil {
+			al.logger.Errorw("Failed to open audit log file", "error", err, "path", al.logPath)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to open audit log file: %v\n", err)
+		}
 		return
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			fmt.Printf("Failed to close audit log file: %v\n", closeErr)
+			if al.logger != nil {
+				al.logger.Warnw("Failed to close audit log file", "error", closeErr, "path", al.logPath)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to close audit log file: %v\n", closeErr)
+			}
 		}
 	}()
 
 	_, err = file.WriteString(entry + "\n")
 	if err != nil {
-		fmt.Printf("Failed to write to audit log file: %v\n", err)
+		if al.logger != nil {
+			al.logger.Errorw("Failed to write to audit log file", "error", err, "path", al.logPath)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to write to audit log file: %v\n", err)
+		}
 	}
 }
 
@@ -164,7 +193,11 @@ func (al *AuditLogger) CleanupOldLogs() error {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			fmt.Printf("Failed to close audit log file: %v\n", closeErr)
+			if al.logger != nil {
+				al.logger.Warnw("Failed to close audit log file during cleanup", "error", closeErr, "path", al.logPath)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to close audit log file: %v\n", closeErr)
+			}
 		}
 	}()
 
@@ -204,7 +237,11 @@ func (al *AuditLogger) writeValidEntries(entries []string) error {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			fmt.Printf("Failed to close audit log file: %v\n", closeErr)
+			if al.logger != nil {
+				al.logger.Warnw("Failed to close audit log file during write", "error", closeErr, "path", al.logPath)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to close audit log file: %v\n", closeErr)
+			}
 		}
 	}()
 

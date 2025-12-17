@@ -17,9 +17,9 @@ package security
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/aryasoni98/wooak/internal/core/domain/security"
+	"go.uber.org/zap"
 )
 
 // SecurityService provides security-related functionality
@@ -32,9 +32,14 @@ type SecurityService struct {
 
 // NewSecurityService creates a new security service
 func NewSecurityService(policy *security.SecurityPolicy) *SecurityService {
+	return NewSecurityServiceWithLogger(policy, nil)
+}
+
+// NewSecurityServiceWithLogger creates a new security service with a logger
+func NewSecurityServiceWithLogger(policy *security.SecurityPolicy, logger *zap.SugaredLogger) *SecurityService {
 	validator := security.NewKeyValidator(policy)
-	auditLog := NewAuditLogger(policy)
-	keyCache := NewKeyValidationCache(100, 1*time.Hour) // Cache 100 keys for 1 hour
+	auditLog := NewAuditLoggerWithLogger(policy, logger)
+	keyCache := NewKeyValidationCache(DefaultKeyCacheSize, DefaultKeyCacheTTL)
 
 	return &SecurityService{
 		policy:    policy,
@@ -171,7 +176,12 @@ func (s *SecurityService) UpdateSecurityPolicy(newPolicy *security.SecurityPolic
 
 	s.policy = newPolicy
 	s.validator = security.NewKeyValidator(newPolicy)
-	s.auditLog = NewAuditLogger(newPolicy)
+	// Preserve logger when updating policy
+	var logger *zap.SugaredLogger
+	if s.auditLog != nil {
+		logger = s.auditLog.logger
+	}
+	s.auditLog = NewAuditLoggerWithLogger(newPolicy, logger)
 	// Clear cache when policy changes as validation results may change
 	s.keyCache.Clear()
 

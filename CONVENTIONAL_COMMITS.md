@@ -77,20 +77,6 @@ You can add a scope to provide more context:
 | `makefile` | Build system | `chore(makefile): add new targets` |
 | `docker` | Containerization | `feat(docker): add multi-stage build` |
 
-## 🎃 **Hacktoberfest PRs**
-
-For Hacktoberfest contributions, use this format:
-
-```
-[Hacktoberfest]: <type>[optional scope]: <description>
-```
-
-### **Examples:**
-- `[Hacktoberfest]: feat: add macOS support for Ollama`
-- `[Hacktoberfest]: fix: resolve connection timeout on Windows`
-- `[Hacktoberfest]: docs: improve installation guide`
-- `[Hacktoberfest]: feat(ui): add keyboard shortcuts help`
-
 ## 📝 **Description Guidelines**
 
 ### **Good Descriptions:**
@@ -160,10 +146,6 @@ build: build system changes
 feat(ui): add dark mode
 fix(cli): resolve argument parsing
 docs(install): update macOS guide
-
-# Hacktoberfest:
-[Hacktoberfest]: feat: add new feature
-[Hacktoberfest]: fix: resolve bug
 ```
 
 Remember: **Good commit messages and PR titles make the project history more readable and help with automated tooling!** 🚀

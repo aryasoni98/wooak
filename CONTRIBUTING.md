@@ -1,17 +1,6 @@
 # Contributing to Wooak
 
-Thank you for your interest in contributing to Wooak! This document provides guidelines and information for contributors, especially those participating in Hacktoberfest.
-
-## 🎃 Hacktoberfest Participation
-
-Wooak is participating in [Hacktoberfest 2025](https://hacktoberfest.com/participation/)! We welcome contributions from developers of all skill levels.
-
-### Hacktoberfest Guidelines
-
-- **Quality over Quantity**: We value meaningful contributions that improve the project
-- **Follow our standards**: All contributions must meet our quality and testing requirements
-- **Respect the community**: Follow our Code of Conduct and be respectful to all contributors
-- **Valid contributions**: Ensure your PRs are not spam and provide real value
+Thank you for your interest in contributing to Wooak! This document provides guidelines and information for contributors.
 
 ## 🚀 Getting Started
 
@@ -117,11 +106,7 @@ git commit -m "feat(ui): add new keyboard shortcut for search"
 - `Fix bug` (too vague)
 - `New feature` (missing colon)
 
-**For Hacktoberfest PRs:** Use `[Hacktoberfest]: <type>: <description>`
-- `[Hacktoberfest]: feat: add macOS support for Ollama`
-- `[Hacktoberfest]: fix: resolve connection timeout on Windows`
-
-**Need help?** Check our [Conventional Commits Guide](.github/CONVENTIONAL_COMMITS.md) for detailed examples.
+**Need help?** Check our [Conventional Commits Guide](CONVENTIONAL_COMMITS.md) for detailed examples.
 
 ### 6. Push and Create Pull Request
 

@@ -125,11 +125,11 @@ func main() {
 
 	// Initialize security service
 	securityPolicy := securityDomain.DefaultSecurityPolicy()
-	securitySvc := securityService.NewSecurityService(securityPolicy)
+	securitySvc := securityService.NewSecurityServiceWithLogger(securityPolicy, log)
 
 	// Initialize AI service
 	aiConfig := aiDomain.DefaultAIConfig()
-	aiSvc := aiService.NewAIService(aiConfig)
+	aiSvc := aiService.NewAIServiceWithLogger(aiConfig, log)
 
 	// Set monitoring for AI service
 	aiSvc.SetMonitoring(monitoringService)

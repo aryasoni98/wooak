@@ -16,6 +16,7 @@ package services
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -28,7 +29,13 @@ import (
 
 	"github.com/aryasoni98/wooak/internal/core/domain"
 	"github.com/aryasoni98/wooak/internal/core/ports"
+	"github.com/aryasoni98/wooak/internal/core/services/tracing"
 	"go.uber.org/zap"
+)
+
+const (
+	// DefaultPingTimeout is the default timeout for ping operations
+	DefaultPingTimeout = 3 * time.Second
 )
 
 type serverService struct {
@@ -46,22 +53,55 @@ func NewServerService(logger *zap.SugaredLogger, sr ports.ServerRepository) port
 
 // ListServers returns a list of servers sorted with pinned on top.
 func (s *serverService) ListServers(query string) ([]domain.Server, error) {
+	ctx := context.Background()
+	traceID := tracing.GetTraceIDOrNew(ctx)
+	errorCtx := NewErrorContext("list servers").
+		WithTraceID(string(traceID)).
+		WithField("query", query)
+
 	servers, err := s.serverRepository.ListServers(query)
 	if err != nil {
-		s.logger.Errorw("failed to list servers", "error", err)
-		return nil, err
+		s.logger.Errorw("failed to list servers", "error", err, "trace_id", traceID, "query", query)
+		return nil, WrapError(err, errorCtx)
 	}
 
-	// Sort: pinned first (PinnedAt non-zero), then by PinnedAt desc, then by Alias asc.
+	// Sort servers using a multi-level sorting strategy:
+	//
+	// Level 1: Pinned vs Unpinned
+	//   - Pinned servers (PinnedAt != zero) appear first
+	//   - Unpinned servers appear after all pinned servers
+	//
+	// Level 2: Within Pinned Servers
+	//   - Sort by PinnedAt timestamp descending (newest pinned first)
+	//   - Most recently pinned servers appear at the top
+	//
+	// Level 3: Within Unpinned Servers
+	//   - Sort alphabetically by Alias (A-Z)
+	//   - Provides predictable, consistent ordering
+	//
+	// This ensures:
+	//   - Frequently used (pinned) servers are easily accessible
+	//   - Recent pins are more prominent than old pins
+	//   - Unpinned servers maintain alphabetical order for easy scanning
+	//
+	// Example ordering:
+	//   1. server-c (pinned 2 hours ago)
+	//   2. server-a (pinned 1 day ago)
+	//   3. server-b (pinned 1 week ago)
+	//   4. alpha-server (unpinned, alphabetical)
+	//   5. beta-server (unpinned, alphabetical)
 	sort.SliceStable(servers, func(i, j int) bool {
 		pi := !servers[i].PinnedAt.IsZero()
 		pj := !servers[j].PinnedAt.IsZero()
+		// First level: pinned vs unpinned
 		if pi != pj {
-			return pi
+			return pi // Pinned servers come first
 		}
+		// Second level: if both pinned, sort by pin time (newest first)
 		if pi && pj {
 			return servers[i].PinnedAt.After(servers[j].PinnedAt)
 		}
+		// Third level: if both unpinned, sort alphabetically
 		return servers[i].Alias < servers[j].Alias
 	})
 
@@ -106,37 +146,64 @@ func validateServer(srv domain.Server) error {
 
 // UpdateServer updates an existing server with new details.
 func (s *serverService) UpdateServer(server domain.Server, newServer domain.Server) error {
+	ctx := context.Background()
+	traceID := tracing.GetTraceIDOrNew(ctx)
+	errorCtx := NewErrorContext("update server").
+		WithTraceID(string(traceID)).
+		WithFields(map[string]interface{}{
+			"old_alias": server.Alias,
+			"new_alias": newServer.Alias,
+		})
+
 	if err := validateServer(newServer); err != nil {
-		s.logger.Warnw("validation failed on update", "error", err, "server", newServer)
-		return err
+		s.logger.Warnw("validation failed on update", "error", err, "trace_id", traceID, "old_alias", server.Alias, "new_alias", newServer.Alias)
+		return WrapErrorf(err, errorCtx, "validation failed for server update")
 	}
 	err := s.serverRepository.UpdateServer(server, newServer)
 	if err != nil {
-		s.logger.Errorw("failed to update server", "error", err, "server", server)
+		s.logger.Errorw("failed to update server", "error", err, "trace_id", traceID, "old_alias", server.Alias, "new_alias", newServer.Alias)
+		return WrapError(err, errorCtx)
 	}
-	return err
+	return nil
 }
 
 // AddServer adds a new server to the repository.
 func (s *serverService) AddServer(server domain.Server) error {
+	ctx := context.Background()
+	traceID := tracing.GetTraceIDOrNew(ctx)
+	errorCtx := NewErrorContext("add server").
+		WithTraceID(string(traceID)).
+		WithFields(map[string]interface{}{
+			"alias": server.Alias,
+			"host":  server.Host,
+		})
+
 	if err := validateServer(server); err != nil {
-		s.logger.Warnw("validation failed on add", "error", err, "server", server)
-		return err
+		s.logger.Warnw("validation failed on add", "error", err, "trace_id", traceID, "alias", server.Alias, "host", server.Host)
+		return WrapErrorf(err, errorCtx, "validation failed for server")
 	}
 	err := s.serverRepository.AddServer(server)
 	if err != nil {
-		s.logger.Errorw("failed to add server", "error", err, "server", server)
+		s.logger.Errorw("failed to add server", "error", err, "trace_id", traceID, "alias", server.Alias, "host", server.Host)
+		return WrapError(err, errorCtx)
 	}
-	return err
+	return nil
 }
 
 // DeleteServer removes a server from the repository.
 func (s *serverService) DeleteServer(server domain.Server) error {
+	ctx := context.Background()
+	traceID := tracing.GetTraceIDOrNew(ctx)
+	errorCtx := NewErrorContext("delete server").
+		WithTraceID(string(traceID)).
+		WithField("alias", server.Alias)
+
 	err := s.serverRepository.DeleteServer(server)
 	if err != nil {
-		s.logger.Errorw("failed to delete server", "error", err, "server", server)
+		s.logger.Errorw("failed to delete server", "error", err, "trace_id", traceID, "alias", server.Alias)
+		return WrapError(err, errorCtx)
 	}
-	return err
+	return nil
 }
 
 // SetPinned sets or clears a pin timestamp for the server alias.
@@ -144,37 +211,51 @@ func (s *serverService) SetPinned(alias string, pinned bool) error {
 	err := s.serverRepository.SetPinned(alias, pinned)
 	if err != nil {
 		s.logger.Errorw("failed to set pin state", "error", err, "alias", alias, "pinned", pinned)
+		return fmt.Errorf("failed to set pin state (alias: %q, pinned: %v): %w", alias, pinned, err)
 	}
-	return err
+	return nil
 }
 
 // SSH starts an interactive SSH session to the given alias using the system's ssh client.
 func (s *serverService) SSH(alias string) error {
+	ctx := context.Background()
+	traceID := tracing.GetTraceIDOrNew(ctx)
+
 	// Validate alias format for security
 	if !isValidAlias(alias) {
-		return fmt.Errorf("invalid alias format: %s", alias)
+		errorCtx := NewErrorContext("SSH connection").
+			WithTraceID(string(traceID)).
+			WithField("alias", alias)
+		return NewSecurityError(errorCtx, "invalid alias format: alias must contain only alphanumeric characters, dots, dashes, and underscores")
 	}
 
 	// Additional security checks
 	if err := s.validateSSHAccess(alias); err != nil {
-		return fmt.Errorf("ssh access validation failed: %w", err)
+		errorCtx := NewErrorContext("SSH connection").
+			WithTraceID(string(traceID)).
+			WithField("alias", alias)
+		return WrapSecurityError(err, errorCtx, "SSH access validation failed")
 	}
 
-	s.logger.Infow("ssh start", "alias", alias)
+	s.logger.Infow("ssh start", "trace_id", traceID, "alias", alias)
 	cmd := exec.Command("ssh", alias)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		s.logger.Errorw("ssh command failed", "alias", alias, "error", err)
-		return err
+		s.logger.Errorw("ssh command failed", "trace_id", traceID, "alias", alias, "error", err)
+		errorCtx := NewErrorContext("SSH connection").
+			WithTraceID(string(traceID)).
+			WithField("alias", alias)
+		return WrapError(err, errorCtx)
 	}
 
 	if err := s.serverRepository.RecordSSH(alias); err != nil {
-		s.logger.Errorw("failed to record ssh metadata", "alias", alias, "error", err)
+		s.logger.Errorw("failed to record ssh metadata", "trace_id", traceID, "alias", alias, "error", err)
+		// Don't fail the SSH connection if metadata recording fails
 	}
 
-	s.logger.Infow("ssh end", "alias", alias)
+	s.logger.Infow("ssh end", "trace_id", traceID, "alias", alias)
 	return nil
 }
 
@@ -197,7 +278,7 @@ func (s *serverService) Ping(server domain.Server) (bool, time.Duration, error) 
 	}
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
-	dialer := net.Dialer{Timeout: 3 * time.Second}
+	dialer := net.Dialer{Timeout: DefaultPingTimeout}
 	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
 		return false, time.Since(start), err
@@ -207,7 +288,24 @@ func (s *serverService) Ping(server domain.Server) (bool, time.Duration, error) 
 }
 
 // resolveSSHDestination uses `ssh -G <alias>` to extract HostName and Port from the user's SSH config.
-// Returns host, port, ok where ok=false if resolution failed.
+//
+// The `ssh -G` command outputs the resolved configuration for an alias, including
+// all inherited settings from Host blocks and wildcards. This function parses
+// the output to extract the actual hostname and port that would be used for connection.
+//
+// Algorithm:
+//  1. Execute `ssh -G <alias>` to get resolved config (includes all inherited settings)
+//  2. Parse output line by line looking for "hostname" and "port" directives
+//  3. Extract the first occurrence of each directive (SSH config allows multiple, last wins)
+//  4. Return resolved values, or defaults (alias as hostname, port 22) if not found
+//
+// Edge Cases:
+//   - Empty alias: returns ok=false immediately
+//   - Command failure: returns ok=false (alias may not exist)
+//   - Missing hostname: uses alias as fallback
+//   - Missing port: uses default port 22
+//
+// Returns host, port, ok where ok=false if resolution failed (e.g., alias doesn't exist).
 func resolveSSHDestination(alias string) (string, int, bool) {
 	alias = strings.TrimSpace(alias)
 	if alias == "" {
@@ -247,19 +345,45 @@ func resolveSSHDestination(alias string) (string, int, bool) {
 	return host, port, true
 }
 
-// isValidAlias validates that an alias is safe for SSH command execution
+// isValidAlias validates that an alias is safe for SSH command execution.
+//
+// This function implements a defense-in-depth security strategy to prevent
+// command injection attacks when aliases are used in shell commands.
+//
+// Security Layers:
+//
+//  1. Length validation: non-empty and max 100 characters
+//     - Prevents buffer overflow attacks
+//     - Limits DoS potential from extremely long strings
+//
+//  2. Path traversal prevention: blocks "..", "/", "\"
+//     - Prevents directory traversal attacks
+//     - Blocks absolute and relative path references
+//
+//  3. Command injection prevention: blocks shell metacharacters
+//     - Blocks: ; & | ` $ ( ) < > " ' \n \r \t
+//     - Prevents command chaining and execution
+//     - Blocks variable expansion and redirection
+//
+//  4. Whitelist validation: only allows safe characters
+//     - Pattern: ^[A-Za-z0-9_.-]+$
+//     - Allows: letters, digits, dots, dashes, underscores
+//     - Ensures only safe characters can be used
+//
+// This multi-layer approach ensures aliases can only contain safe characters
+// that cannot be exploited to execute arbitrary commands or access unauthorized paths.
 func isValidAlias(alias string) bool {
-	// Check length
+	// Check length to prevent buffer overflow and DoS
 	if alias == "" || len(alias) > 100 {
 		return false
 	}
 
-	// Check for dangerous characters
+	// Check for path traversal attempts
 	if strings.Contains(alias, "..") || strings.Contains(alias, "/") || strings.Contains(alias, "\\") {
 		return false
 	}
 
-	// Check for command injection attempts
+	// Check for command injection attempts - block shell metacharacters
 	dangerousChars := []string{";", "&", "|", "`", "$", "(", ")", "<", ">", "\"", "'", "\n", "\r", "\t"}
 	for _, char := range dangerousChars {
 		if strings.Contains(alias, char) {
@@ -267,7 +391,7 @@ func isValidAlias(alias string) bool {
 		}
 	}
 
-	// Allow only alphanumeric, dots, dashes, underscores
+	// Whitelist: only allow safe characters (alphanumeric, dots, dashes, underscores)
 	matched, _ := regexp.MatchString(`^[A-Za-z0-9_.-]+$`, alias)
 	return matched
 }
@@ -277,7 +401,9 @@ func (s *serverService) validateSSHAccess(alias string) error {
 	// Check if alias exists in repository
 	servers, err := s.serverRepository.ListServers("")
 	if err != nil {
-		return fmt.Errorf("failed to list servers for validation: %w", err)
+		errorCtx := NewErrorContext("validate SSH access").
+			WithField("alias", alias)
+		return WrapError(err, errorCtx)
 	}
 
 	// Verify alias exists in our known servers
@@ -290,7 +416,9 @@ func (s *serverService) validateSSHAccess(alias string) error {
 	}
 
 	if !aliasExists {
-		return fmt.Errorf("alias '%s' not found in known servers", alias)
+		errorCtx := NewErrorContext("validate SSH access").
+			WithField("alias", alias)
+		return NewSecurityError(errorCtx, "alias not found in known servers list")
 	}
 
 	return nil
