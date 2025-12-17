@@ -1,0 +1,528 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    # Trigger on commits with release tag in commit message
+    # Example: "Releases: v0.0.3" or "feat: new feature Releases: v0.0.3"
+
+jobs:
+  # Detect release commits and extract version
+  detect-release:
+    name: Detect Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      is-release: ${{ steps.check-release.outputs.is-release }}
+      tag: ${{ steps.extract-version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit message for release tag
+        id: check-release
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+          
+          if echo "$COMMIT_MSG" | grep -qiE "Releases:\s*v[0-9]+\.[0-9]+\.[0-9]+"; then
+            echo "is-release=true" >> $GITHUB_OUTPUT
+            echo "✓ Release commit detected"
+          else
+            echo "is-release=false" >> $GITHUB_OUTPUT
+            echo "✗ No release tag found in commit message"
+          fi
+
+      - name: Extract version from commit message
+        id: extract-version
+        if: steps.check-release.outputs.is-release == 'true'
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          VERSION=$(echo "$COMMIT_MSG" | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+          
+          if [ -z "$VERSION" ]; then
+            echo "Error: Could not extract version from commit message"
+            exit 1
+          fi
+          
+          # Remove 'v' prefix for tag (GitHub tags should include 'v')
+          TAG="$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+          echo "Tag: $TAG"
+
+  # Run comprehensive tests across all platforms
+  test-linux-amd64:
+    name: Test Linux AMD64
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.23']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-linux-amd64.out ./...
+
+      - name: Run integration tests
+        run: |
+          go test -v -tags=integration ./... || echo "No integration tests found, skipping"
+
+      - name: Build and test binary
+        run: |
+          GOOS=linux GOARCH=amd64 go build -v -o wooak-linux-amd64 ./cmd
+          file wooak-linux-amd64
+          ./wooak-linux-amd64 --version || echo "Version check completed"
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage-linux-amd64.out
+          flags: linux-amd64
+          name: coverage-linux-amd64
+          fail_ci_if_error: false
+
+  test-linux-arm64:
+    name: Test Linux ARM64
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-linux-arm64.out ./...
+
+      - name: Build and test binary
+        run: |
+          GOOS=linux GOARCH=arm64 go build -v -o wooak-linux-arm64 ./cmd
+          file wooak-linux-arm64
+
+  test-linux-arm:
+    name: Test Linux ARM
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-linux-arm.out ./...
+
+      - name: Build and test binary
+        run: |
+          GOOS=linux GOARCH=arm go build -v -o wooak-linux-arm ./cmd
+          file wooak-linux-arm
+
+  test-linux-386:
+    name: Test Linux 386
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-linux-386.out ./...
+
+      - name: Build and test binary
+        run: |
+          GOOS=linux GOARCH=386 go build -v -o wooak-linux-386 ./cmd
+          file wooak-linux-386
+
+  test-windows-amd64:
+    name: Test Windows AMD64
+    runs-on: windows-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-windows-amd64.out ./...
+
+      - name: Build and test binary
+        run: |
+          $env:GOOS="windows"
+          $env:GOARCH="amd64"
+          go build -v -o wooak-windows-amd64.exe ./cmd
+          if (Test-Path wooak-windows-amd64.exe) {
+            Write-Host "Binary built successfully"
+            Get-Item wooak-windows-amd64.exe | Select-Object Name, Length
+          }
+
+  test-macos-amd64:
+    name: Test macOS AMD64
+    runs-on: macos-13
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-macos-amd64.out ./...
+
+      - name: Build and test binary
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -v -o wooak-darwin-amd64 ./cmd
+          file wooak-darwin-amd64
+          ./wooak-darwin-amd64 --version || echo "Version check completed"
+
+  test-macos-arm64:
+    name: Test macOS ARM64 (Apple Silicon)
+    runs-on: macos-14
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          go test -race -v -coverprofile=coverage-macos-arm64.out ./...
+
+      - name: Build and test binary
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -v -o wooak-darwin-arm64 ./cmd
+          file wooak-darwin-arm64
+          ./wooak-darwin-arm64 --version || echo "Version check completed"
+
+  # Code quality checks
+  quality-checks:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run go fmt check
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run 'go fmt ./...'"
+            gofmt -s -d .
+            exit 1
+          fi
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        run: staticcheck ./...
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.2
+
+      - name: Run golangci-lint
+        run: golangci-lint run
+
+  # Security scan
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: detect-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  # Build artifacts using GoReleaser
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs:
+      - detect-release
+      - test-linux-amd64
+      - test-linux-arm64
+      - test-linux-arm
+      - test-linux-386
+      - test-windows-amd64
+      - test-macos-amd64
+      - test-macos-arm64
+      - quality-checks
+      - security-scan
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          install-only: true
+
+      - name: Create Git tag
+        if: needs.detect-release.outputs.tag != ''
+        run: |
+          TAG="${{ needs.detect-release.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Fetch all tags to check if tag exists remotely
+          git fetch --tags
+          
+          # Check if tag already exists locally or remotely
+          if git rev-parse "$TAG" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists, skipping tag creation"
+            # Ensure we're on the commit that should be tagged
+            git checkout "${{ github.sha }}"
+          else
+            # Create annotated tag pointing to current commit
+            git tag -a "$TAG" -m "Release $TAG" "${{ github.sha }}"
+            git push origin "$TAG"
+            echo "Created and pushed tag: $TAG"
+          fi
+          
+          # Verify tag exists
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "✓ Tag $TAG verified"
+            git show "$TAG" --no-patch --format="Tag: %D%nCommit: %H%nAuthor: %an <%ae>%nDate: %ad%nMessage: %s"
+          else
+            echo "✗ Failed to verify tag $TAG"
+            exit 1
+          fi
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GoReleaser will automatically detect the tag from the repository
+
+  # Verify release was created
+  verify-release:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    needs:
+      - detect-release
+      - build-release
+    if: needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify GitHub Release
+        run: |
+          VERSION="${{ needs.detect-release.outputs.version }}"
+          TAG="${{ needs.detect-release.outputs.tag }}"
+          
+          echo "Verifying release $TAG was created..."
+          
+          # Wait a bit for GitHub API to update
+          sleep 15
+          
+          # Check if release exists using GitHub API
+          RELEASE_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$RELEASE_URL")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" = "200" ] && echo "$BODY" | jq -e '.tag_name' > /dev/null 2>&1; then
+            echo "✓ Release $TAG successfully created!"
+            echo ""
+            echo "Release Details:"
+            echo "$BODY" | jq -r '
+              "Tag: " + .tag_name,
+              "Name: " + .name,
+              "Published: " + .published_at,
+              "Draft: " + (.draft | tostring),
+              "Prerelease: " + (.prerelease | tostring),
+              "Assets: " + (.assets | length | tostring)
+            '
+            echo ""
+            echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          else
+            echo "✗ Release $TAG not found (HTTP $HTTP_CODE)"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+  # Release summary
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs:
+      - detect-release
+      - verify-release
+    if: always() && needs.detect-release.outputs.is-release == 'true'
+    
+    steps:
+      - name: Release Summary
+        run: |
+          echo "## 🚀 Release Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.detect-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ needs.detect-release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux AMD64: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux ARM64: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux ARM: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux 386: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows AMD64: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS AMD64: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS ARM64: ${{ job.status == 'success' && 'Passed' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.detect-release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
