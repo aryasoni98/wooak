@@ -195,7 +195,7 @@ func (sf *ServerForm) createAlgorithmAutocomplete(suggestions []string) func(str
 		// Handle prefix characters
 		prefix := ""
 		searchTerm := lastWord
-		if len(lastWord) > 0 {
+		if lastWord != "" {
 			if lastWord[0] == '+' || lastWord[0] == '-' || lastWord[0] == '^' {
 				prefix = string(lastWord[0])
 				if len(lastWord) > 1 {

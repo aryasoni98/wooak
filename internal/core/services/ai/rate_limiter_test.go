@@ -16,6 +16,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -159,7 +160,7 @@ func TestRateLimiter_Wait_ContextCancel(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when context times out")
 	}
-	if err != context.DeadlineExceeded && err != context.Canceled {
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Logf("Got error (may be expected): %v", err)
 	}
 }
